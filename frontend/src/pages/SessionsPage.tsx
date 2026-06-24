@@ -27,10 +27,15 @@ export default function SessionsPage() {
   const active = sessions.filter((s: ShoppingSession) => s.status === 'active');
   const completed = sessions.filter((s: ShoppingSession) => s.status === 'completed');
 
-  if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Loading...</div>;
+  if (isLoading) return (
+    <div className="loading-state">
+      <div className="spinner" />
+      Loading sessions...
+    </div>
+  );
 
   return (
-    <div>
+    <div className="page">
       <h1 style={{ fontSize: 24, fontWeight: 700, marginBottom: 24 }}>Shopping Sessions</h1>
 
       {/* Active sessions */}
@@ -58,8 +63,10 @@ export default function SessionsPage() {
           Completed {completed.length > 0 && `(${completed.length})`}
         </div>
         {completed.length === 0 ? (
-          <div className="card" style={{ padding: 40, textAlign: 'center', color: 'var(--text-muted)' }}>
-            No completed sessions yet. Start shopping from a list!
+          <div className="card empty-state">
+            <div className="empty-icon">🛍️</div>
+            <div className="empty-title">No completed sessions yet</div>
+            <div className="empty-desc">Start a shopping session from one of your lists</div>
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -129,7 +136,7 @@ function SessionCard({
                 style={{
                   height: '100%',
                   width: `${pct}%`,
-                  background: isActive ? 'var(--primary)' : 'var(--success)',
+                  background: isActive ? 'var(--progress-gradient)' : 'var(--progress-success-gradient)',
                   borderRadius: 99,
                   transition: 'width 0.3s',
                 }}

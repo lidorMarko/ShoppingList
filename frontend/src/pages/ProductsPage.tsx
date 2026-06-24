@@ -15,8 +15,14 @@ export default function ProductsPage() {
   const [categoryId, setCategoryId] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [imagePreview, setImagePreview] = useState('');
+  const [isGlobal, setIsGlobal] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const { data: isAdmin = false } = useQuery({
+    queryKey: ['is-admin'],
+    queryFn: productsService.isAdmin,
+  });
 
   const { data: products = [], isLoading } = useQuery({
     queryKey: ['products', search],
@@ -47,7 +53,7 @@ export default function ProductsPage() {
   });
 
   const resetForm = () => {
-    setName(''); setUnit(''); setCategoryId(''); setImageUrl(''); setImagePreview('');
+    setName(''); setUnit(''); setCategoryId(''); setImageUrl(''); setImagePreview(''); setIsGlobal(false);
     setShowForm(false); setEditingProduct(null);
   };
 
@@ -81,6 +87,7 @@ export default function ProductsPage() {
       unit: unit || undefined,
       categoryId: categoryId || undefined,
       imageUrl: imageUrl || undefined,
+      isGlobal: isGlobal || undefined,
     };
     if (editingProduct) {
       updateMutation.mutate({ id: editingProduct.id, data });
@@ -90,7 +97,7 @@ export default function ProductsPage() {
   };
 
   return (
-    <div>
+    <div className="page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700 }}>Products</h1>
         <button className="btn-primary" onClick={() => { resetForm(); setShowForm(true); }}>
@@ -130,6 +137,17 @@ export default function ProductsPage() {
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
+
+          {isAdmin && !editingProduct && (
+            <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14, cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={isGlobal}
+                onChange={(e) => setIsGlobal(e.target.checked)}
+              />
+              <span>Global product <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>(visible to all families)</span></span>
+            </label>
+          )}
 
           {/* Image upload */}
           <div>
@@ -196,10 +214,17 @@ export default function ProductsPage() {
       )}
 
       {isLoading ? (
-        <div style={{ color: 'var(--text-muted)' }}>Loading...</div>
+        <div className="loading-state">
+          <div className="spinner" />
+          Loading products...
+        </div>
       ) : products.length === 0 ? (
-        <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
-          No products found.
+        <div className="card empty-state">
+          <div className="empty-icon">📦</div>
+          <div className="empty-title">No products found</div>
+          <div className="empty-desc">
+            {search ? 'Try a different search term' : 'Add your first product to get started'}
+          </div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>

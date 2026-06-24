@@ -20,7 +20,6 @@ export default function LoginPage() {
 
     try {
       if (mode === 'signup') {
-        // Validate invite code before creating the Supabase account
         try {
           await api.post('/auth/validate-invite', { code: inviteCode });
         } catch {
@@ -44,6 +43,14 @@ export default function LoginPage() {
     }
   }
 
+  const fieldLabel: React.CSSProperties = {
+    fontSize: 13,
+    fontWeight: 500,
+    color: 'var(--text-muted)',
+    marginBottom: 5,
+    display: 'block',
+  };
+
   return (
     <div
       style={{
@@ -52,124 +59,152 @@ export default function LoginPage() {
         alignItems: 'center',
         justifyContent: 'center',
         background: 'var(--bg)',
+        padding: '24px 16px',
       }}
     >
       <div
+        className="card page"
         style={{
-          background: 'var(--surface)',
-          border: '1px solid var(--border)',
-          borderRadius: 'var(--radius)',
-          padding: 40,
+          padding: '36px 32px',
           width: '100%',
           maxWidth: 380,
-          boxShadow: 'var(--shadow)',
         }}
       >
-        <h1 style={{ fontSize: 22, fontWeight: 700, color: 'var(--primary)', marginBottom: 8 }}>
-          ShoppingList
-        </h1>
-        <p style={{ color: 'var(--text-muted)', marginBottom: 28, fontSize: 14 }}>
-          {mode === 'login' ? 'Sign in to your account' : 'Create a new account'}
-        </p>
+        {/* Brand */}
+        <div style={{ marginBottom: 28 }}>
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 800,
+              color: 'var(--primary)',
+              letterSpacing: '-0.01em',
+              marginBottom: 4,
+            }}
+          >
+            🛒 ShoppingList
+          </div>
+          <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>
+            {mode === 'login' ? 'Sign in to your account' : 'Create a new account'}
+          </p>
+        </div>
 
         {error && (
           <div
             style={{
-              background: '#fee2e2',
-              color: '#b91c1c',
+              background: 'var(--alert-error-bg)',
+              color: 'var(--alert-error-text)',
               padding: '10px 14px',
-              borderRadius: 6,
+              borderRadius: 'var(--radius)',
               fontSize: 14,
               marginBottom: 16,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 8,
             }}
           >
+            <span style={{ flexShrink: 0 }}>⚠️</span>
             {error}
           </div>
         )}
         {successMessage && (
           <div
             style={{
-              background: '#dcfce7',
-              color: '#15803d',
+              background: 'var(--alert-success-bg)',
+              color: 'var(--alert-success-text)',
               padding: '10px 14px',
-              borderRadius: 6,
+              borderRadius: 'var(--radius)',
               fontSize: 14,
               marginBottom: 16,
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: 8,
             }}
           >
+            <span style={{ flexShrink: 0 }}>✅</span>
             {successMessage}
           </div>
         )}
 
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          <input
-            type="email"
-            placeholder="Email"
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
-            style={{
-              padding: '10px 12px',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              fontSize: 14,
-              outline: 'none',
-            }}
-          />
-          <input
-            type="password"
-            placeholder="Password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={6}
-            style={{
-              padding: '10px 12px',
-              border: '1px solid var(--border)',
-              borderRadius: 6,
-              fontSize: 14,
-              outline: 'none',
-            }}
-          />
-          {mode === 'signup' && (
+        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <label style={fieldLabel}>Email</label>
             <input
-              type="text"
-              placeholder="Invite code"
-              value={inviteCode}
-              onChange={(e) => setInviteCode(e.target.value)}
+              type="email"
+              placeholder="you@example.com"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               required
-              style={{
-                padding: '10px 12px',
-                border: '1px solid var(--border)',
-                borderRadius: 6,
-                fontSize: 14,
-                outline: 'none',
-              }}
             />
+          </div>
+
+          <div>
+            <label style={fieldLabel}>Password</label>
+            <input
+              type="password"
+              placeholder="••••••••"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+            />
+          </div>
+
+          {mode === 'signup' && (
+            <div>
+              <label style={fieldLabel}>Invite code</label>
+              <input
+                type="text"
+                placeholder="Enter your invite code"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                required
+              />
+            </div>
           )}
+
           <button
             type="submit"
             disabled={loading}
+            className="btn-primary"
             style={{
-              background: 'var(--primary)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: 6,
-              padding: '10px 0',
+              padding: '11px 0',
               fontWeight: 600,
               fontSize: 15,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              opacity: loading ? 0.7 : 1,
+              borderRadius: 'var(--radius)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 8,
+              marginTop: 4,
             }}
           >
-            {loading ? '...' : mode === 'login' ? 'Sign In' : 'Sign Up'}
+            {loading ? (
+              <>
+                <span
+                  className="spinner"
+                  style={{
+                    width: 16,
+                    height: 16,
+                    borderColor: 'rgba(255,255,255,0.3)',
+                    borderTopColor: 'white',
+                  }}
+                />
+                {mode === 'login' ? 'Signing in…' : 'Creating account…'}
+              </>
+            ) : (
+              mode === 'login' ? 'Sign In' : 'Sign Up'
+            )}
           </button>
         </form>
 
         <p style={{ marginTop: 20, textAlign: 'center', fontSize: 14, color: 'var(--text-muted)' }}>
           {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
           <button
-            onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setError(''); setSuccessMessage(''); }}
+            onClick={() => {
+              setMode(mode === 'login' ? 'signup' : 'login');
+              setError('');
+              setSuccessMessage('');
+            }}
             style={{
               background: 'none',
               border: 'none',
@@ -178,6 +213,8 @@ export default function LoginPage() {
               fontWeight: 600,
               fontSize: 14,
               padding: 0,
+              textDecoration: 'underline',
+              textUnderlineOffset: 2,
             }}
           >
             {mode === 'login' ? 'Sign Up' : 'Sign In'}

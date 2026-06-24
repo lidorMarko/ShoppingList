@@ -82,16 +82,10 @@ export default function FamilyPage() {
               </code>
               <button
                 onClick={() => copyCode(family.inviteCode)}
-                style={{
-                  background: 'var(--bg)',
-                  border: '1px solid var(--border)',
-                  borderRadius: 6,
-                  padding: '6px 12px',
-                  fontSize: 13,
-                  cursor: 'pointer',
-                }}
+                className="btn-ghost"
+                style={{ fontSize: 13, padding: '6px 14px' }}
               >
-                {copied ? 'Copied!' : 'Copy'}
+                {copied ? '✓ Copied!' : 'Copy'}
               </button>
             </div>
 
@@ -133,8 +127,8 @@ export default function FamilyPage() {
             onClick={() => leaveMutation.mutate()}
             disabled={leaveMutation.isPending}
             style={{
-              background: '#fee2e2',
-              color: '#b91c1c',
+              background: 'var(--alert-error-bg)',
+              color: 'var(--alert-error-text)',
               border: 'none',
               borderRadius: 6,
               padding: '10px 20px',
@@ -146,7 +140,7 @@ export default function FamilyPage() {
             {leaveMutation.isPending ? 'Leaving...' : 'Leave Family'}
           </button>
           {leaveMutation.isError && (
-            <p style={{ color: '#b91c1c', fontSize: 13 }}>
+            <p style={{ color: 'var(--alert-error-text)', fontSize: 13 }}>
               {(leaveMutation.error as Error).message}
             </p>
           )}
@@ -178,21 +172,14 @@ export default function FamilyPage() {
               <button
                 onClick={() => { if (familyName.trim()) createMutation.mutate(familyName.trim()); }}
                 disabled={createMutation.isPending || !familyName.trim()}
-                style={{
-                  background: 'var(--primary)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '8px 18px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
+                className="btn-primary"
+                style={{ padding: '8px 18px' }}
               >
                 {createMutation.isPending ? '...' : 'Create'}
               </button>
             </div>
             {createMutation.isError && (
-              <p style={{ color: '#b91c1c', fontSize: 13, marginTop: 8 }}>
+              <p style={{ color: 'var(--alert-error-text)', fontSize: 13, marginTop: 8 }}>
                 {(createMutation.error as Error).message}
               </p>
             )}
@@ -226,21 +213,14 @@ export default function FamilyPage() {
               <button
                 onClick={() => { if (inviteCode.trim()) joinMutation.mutate(inviteCode.trim()); }}
                 disabled={joinMutation.isPending || inviteCode.length < 6}
-                style={{
-                  background: 'var(--primary)',
-                  color: '#fff',
-                  border: 'none',
-                  borderRadius: 6,
-                  padding: '8px 18px',
-                  fontWeight: 600,
-                  cursor: 'pointer',
-                }}
+                className="btn-primary"
+                style={{ padding: '8px 18px' }}
               >
                 {joinMutation.isPending ? '...' : 'Join'}
               </button>
             </div>
             {joinMutation.isError && (
-              <p style={{ color: '#b91c1c', fontSize: 13, marginTop: 8 }}>
+              <p style={{ color: 'var(--alert-error-text)', fontSize: 13, marginTop: 8 }}>
                 {(joinMutation.error as Error).message}
               </p>
             )}

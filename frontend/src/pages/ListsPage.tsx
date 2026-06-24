@@ -45,10 +45,15 @@ export default function ListsPage() {
     if (newName.trim()) createMutation.mutate({ name: newName.trim() });
   };
 
-  if (isLoading) return <div style={{ color: 'var(--text-muted)' }}>Loading lists...</div>;
+  if (isLoading) return (
+    <div className="loading-state">
+      <div className="spinner" />
+      Loading lists...
+    </div>
+  );
 
   return (
-    <div>
+    <div className="page">
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700 }}>Shopping Lists</h1>
         <button className="btn-primary" onClick={() => setCreating(!creating)}>
@@ -78,8 +83,10 @@ export default function ListsPage() {
       )}
 
       {lists.length === 0 ? (
-        <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
-          No shopping lists yet. Create one to get started!
+        <div className="card empty-state">
+          <div className="empty-icon">📝</div>
+          <div className="empty-title">No shopping lists yet</div>
+          <div className="empty-desc">Create your first list to start tracking groceries</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>

@@ -112,7 +112,12 @@ export default function ShoppingModePage() {
   };
 
   if (isLoading || !session) {
-    return <div style={{ color: 'var(--text-muted)' }}>Loading...</div>;
+    return (
+      <div className="loading-state">
+        <div className="spinner" />
+        Loading session...
+      </div>
+    );
   }
 
   const isCompleted = session.status === 'completed';
@@ -138,7 +143,7 @@ export default function ShoppingModePage() {
   };
 
   return (
-    <div style={{ maxWidth: 640, margin: '0 auto' }}>
+    <div className="page" style={{ maxWidth: 640, margin: '0 auto' }}>
       {/* Header */}
       <div
         style={{
@@ -203,9 +208,9 @@ export default function ShoppingModePage() {
               style={{
                 height: '100%',
                 width: `${pct}%`,
-                background: pct === 100 ? 'var(--success)' : 'var(--primary)',
+                background: pct === 100 ? 'var(--progress-success-gradient)' : 'var(--progress-gradient)',
                 borderRadius: 99,
-                transition: 'width 0.3s',
+                transition: 'width 0.5s cubic-bezier(0.4, 0, 0.2, 1)',
               }}
             />
           </div>
@@ -214,7 +219,7 @@ export default function ShoppingModePage() {
 
       {/* Upload error */}
       {receiptError && (
-        <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 6, background: '#fef2f2', border: '1px solid #fecaca', fontSize: 13, color: '#dc2626' }}>
+        <div style={{ marginBottom: 12, padding: '8px 12px', borderRadius: 6, background: 'var(--alert-error-bg)', border: '1px solid var(--alert-error-border)', fontSize: 13, color: 'var(--alert-error-text)' }}>
           {receiptError}
         </div>
       )}
@@ -288,7 +293,7 @@ export default function ShoppingModePage() {
           )}
 
           {analyzeReceiptMutation.isError && (
-            <div style={{ marginTop: 8, fontSize: 12, color: '#dc2626' }}>
+            <div style={{ marginTop: 8, fontSize: 12, color: 'var(--danger)' }}>
               Analysis failed. Please try again.
             </div>
           )}
@@ -325,8 +330,8 @@ export default function ShoppingModePage() {
                     style={{
                       display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                       padding: '6px 10px', borderRadius: 6,
-                      background: m.found ? '#f0fdf4' : 'var(--bg)',
-                      border: `1px solid ${m.found ? '#bbf7d0' : 'var(--border)'}`,
+                      background: m.found ? 'var(--purchased-bg)' : 'var(--bg)',
+                      border: `1px solid ${m.found ? 'var(--purchased-border)' : 'var(--border)'}`,
                       fontSize: 13,
                     }}
                   >
@@ -486,8 +491,10 @@ export default function ShoppingModePage() {
 
       {/* Items grouped by category */}
       {total === 0 ? (
-        <div className="card" style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}>
-          No items in this session.
+        <div className="card empty-state">
+          <div className="empty-icon">🛒</div>
+          <div className="empty-title">No items in this session</div>
+          <div className="empty-desc">Add items using the button above</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
@@ -550,8 +557,8 @@ function ShoppingItemRow({
         display: 'flex',
         alignItems: 'center',
         gap: 14,
-        background: item.isPurchased ? '#f0fdf4' : 'var(--surface)',
-        borderColor: item.isPurchased ? '#bbf7d0' : 'var(--border)',
+        background: item.isPurchased ? 'var(--purchased-bg)' : 'var(--surface)',
+        borderColor: item.isPurchased ? 'var(--purchased-border)' : 'var(--border)',
         transition: 'background 0.2s, border-color 0.2s',
       }}
     >

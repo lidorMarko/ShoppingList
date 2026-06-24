@@ -93,7 +93,12 @@ export default function ListDetailPage() {
   };
 
   if (isLoading || !list) {
-    return <div style={{ color: 'var(--text-muted)' }}>Loading...</div>;
+    return (
+      <div className="loading-state">
+        <div className="spinner" />
+        Loading list...
+      </div>
+    );
   }
 
   const grouped = groupByCategory(list.items ?? []);
@@ -101,7 +106,7 @@ export default function ListDetailPage() {
   const purchasedItems = list.items?.filter((i) => i.isPurchased).length ?? 0;
 
   return (
-    <div>
+    <div className="page">
       <div style={{ marginBottom: 24 }}>
         <Link to="/lists" style={{ fontSize: 13, color: 'var(--text-muted)' }}>
           ← All Lists
@@ -276,11 +281,10 @@ export default function ListDetailPage() {
       )}
 
       {totalItems === 0 ? (
-        <div
-          className="card"
-          style={{ padding: 48, textAlign: 'center', color: 'var(--text-muted)' }}
-        >
-          This list is empty. Add some items!
+        <div className="card empty-state">
+          <div className="empty-icon">🧺</div>
+          <div className="empty-title">This list is empty</div>
+          <div className="empty-desc">Add items using the button above</div>
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

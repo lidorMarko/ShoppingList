@@ -32,7 +32,7 @@ export default function InviteCodePage() {
           An invite code is required to activate your account.
         </p>
         {error && (
-          <div style={{ background: '#fee2e2', color: '#b91c1c', padding: '10px 14px', borderRadius: 6, fontSize: 14, marginBottom: 16 }}>
+          <div style={{ background: 'var(--alert-error-bg)', color: 'var(--alert-error-text)', padding: '10px 14px', borderRadius: 6, fontSize: 14, marginBottom: 16 }}>
             {error}
           </div>
         )}
