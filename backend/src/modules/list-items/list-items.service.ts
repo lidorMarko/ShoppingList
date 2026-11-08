@@ -20,9 +20,9 @@ export class ListItemsService {
     });
   }
 
-  async findOne(id: string): Promise<ListItem> {
+  async findOne(listId: string, id: string): Promise<ListItem> {
     const item = await this.itemRepo.findOne({
-      where: { id },
+      where: { id, shoppingListId: listId },
       relations: ['product', 'product.category'],
     });
     if (!item) throw new NotFoundException(`List item ${id} not found`);
@@ -34,20 +34,20 @@ export class ListItemsService {
     return this.itemRepo.save(item);
   }
 
-  async update(id: string, dto: UpdateListItemDto): Promise<ListItem> {
-    const item = await this.findOne(id);
+  async update(listId: string, id: string, dto: UpdateListItemDto): Promise<ListItem> {
+    const item = await this.findOne(listId, id);
     Object.assign(item, dto);
     return this.itemRepo.save(item);
   }
 
-  async togglePurchased(id: string): Promise<ListItem> {
-    const item = await this.findOne(id);
+  async togglePurchased(listId: string, id: string): Promise<ListItem> {
+    const item = await this.findOne(listId, id);
     item.isPurchased = !item.isPurchased;
     return this.itemRepo.save(item);
   }
 
-  async remove(id: string): Promise<void> {
-    const item = await this.findOne(id);
+  async remove(listId: string, id: string): Promise<void> {
+    const item = await this.findOne(listId, id);
     await this.itemRepo.remove(item);
   }
 }

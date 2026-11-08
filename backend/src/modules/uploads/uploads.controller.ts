@@ -1,5 +1,7 @@
+import { CurrentUser } from '../auth/current-user.decorator';
 import {
   Controller,
+  Get, Query, Res,
   Post,
   UploadedFile,
   UseInterceptors,
@@ -12,6 +14,14 @@ import { UploadsService } from './uploads.service';
 @Controller('uploads')
 export class UploadsController {
   constructor(private readonly uploadsService: UploadsService) {}
+
+  @Get('product-image')
+  async downloadPreview(@Query('reference') reference: string, @Res() response: any) {
+    const file = await this.uploadsService.downloadImage(reference);
+    response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.type(file.contentType).send(file.buffer);
+  }
 
   @Post('product-image')
   @UseInterceptors(
@@ -26,9 +36,9 @@ export class UploadsController {
       },
     }),
   )
-  async uploadProductImage(@UploadedFile() file: Express.Multer.File) {
+  async uploadProductImage(@UploadedFile() file: Express.Multer.File, @CurrentUser() user: { id: string }) {
     if (!file) throw new BadRequestException('No file provided');
-    const url = await this.uploadsService.uploadProductImage(file);
+    const url = await this.uploadsService.uploadProductImage(file, user.id);
     return { url };
   }
 }

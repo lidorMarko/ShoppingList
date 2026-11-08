@@ -1,6 +1,5 @@
-import { Controller, Get, Post, Body, Query, UseGuards, UnauthorizedException } from '@nestjs/common';
+import { Controller, Get, Post, Body, Query, UnauthorizedException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { SupabaseAuthGuard } from './supabase-auth.guard';
 import { CurrentUser } from './current-user.decorator';
 import { AuthService } from './auth.service';
 
@@ -20,7 +19,6 @@ export class AuthController {
   }
 
   @Get('me')
-  @UseGuards(SupabaseAuthGuard)
   async me(
     @CurrentUser() user: { id: string; email: string },
     @Query('inviteCode') inviteCode?: string,

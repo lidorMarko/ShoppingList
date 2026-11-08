@@ -1,3 +1,4 @@
+import ProductImage from '../components/ProductImage';
 import { useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { productsService } from '../services/products.service';
@@ -154,7 +155,8 @@ export default function ProductsPage() {
             <div style={{ fontSize: 13, color: 'var(--text-muted)', marginBottom: 6 }}>Product image</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
               {imagePreview ? (
-                <img
+                <ProductImage
+                  productId={editingProduct && imagePreview === editingProduct.imageUrl ? editingProduct.id : undefined}
                   src={imagePreview}
                   alt="preview"
                   style={{ width: 64, height: 64, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--border)' }}
@@ -240,7 +242,8 @@ export default function ProductsPage() {
               }}
             >
               {p.imageUrl ? (
-                <img
+                <ProductImage
+                  productId={p.id}
                   src={p.imageUrl}
                   alt={p.name}
                   style={{ width: 44, height: 44, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
@@ -283,9 +286,9 @@ export default function ProductsPage() {
                 </span>
               )}
               <div style={{ display: 'flex', gap: 6 }}>
-                <button className="btn-ghost" style={{ padding: '5px 10px', fontSize: 13 }} onClick={() => openEdit(p)}>
+                {(p.userId !== null || isAdmin) && <button className="btn-ghost" style={{ padding: '5px 10px', fontSize: 13 }} onClick={() => openEdit(p)}>
                   Edit
-                </button>
+                </button>}
                 <button
                   className="btn-danger"
                   style={{ padding: '5px 10px', fontSize: 13 }}

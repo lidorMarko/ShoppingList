@@ -9,6 +9,7 @@ import CategoriesPage from './pages/CategoriesPage';
 import SessionsPage from './pages/SessionsPage';
 import ShoppingModePage from './pages/ShoppingModePage';
 import FamilyPage from './pages/FamilyPage';
+import EdenConnectionPage from './pages/EdenConnectionPage';
 import InviteCodePage from './pages/InviteCodePage';
 
 function ProtectedRoutes() {
@@ -34,6 +35,7 @@ function ProtectedRoutes() {
         <Route path="/categories" element={<CategoriesPage />} />
         <Route path="/sessions" element={<SessionsPage />} />
         <Route path="/sessions/:sessionId" element={<ShoppingModePage />} />
+        <Route path="/integrations/eden" element={<EdenConnectionPage />} />
         <Route path="/family" element={<FamilyPage />} />
       </Route>
     </Routes>

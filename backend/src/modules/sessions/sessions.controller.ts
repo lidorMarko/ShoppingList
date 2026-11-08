@@ -1,5 +1,6 @@
 import {
   Controller,
+  Res,
   Get,
   Post,
   Patch,
@@ -11,18 +12,15 @@ import {
   UploadedFile,
   UseInterceptors,
   BadRequestException,
-  UseGuards,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { memoryStorage } from 'multer';
-import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { SessionsService } from './sessions.service';
 import { CreateSessionDto } from './dto/create-session.dto';
 import { AddSessionItemDto, UpdateSessionItemDto } from './dto/update-session-item.dto';
 
 @Controller('sessions')
-@UseGuards(SupabaseAuthGuard)
 export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) {}
 
@@ -50,6 +48,16 @@ export class SessionsController {
   @HttpCode(HttpStatus.NO_CONTENT)
   remove(@Param('id') id: string) {
     return this.sessionsService.remove(id);
+  }
+
+  @Get(':id/receipt/file')
+  async downloadReceipt(@Param('id') id: string, @Res() response: any) {
+    const file = await this.sessionsService.downloadReceipt(id);
+    response.setHeader('Cache-Control', 'no-store');
+    response.setHeader('X-Content-Type-Options', 'nosniff');
+    response.setHeader('Content-Type', file.contentType);
+    response.setHeader('Content-Disposition', `inline; filename="${file.filename}"`);
+    response.send(file.buffer);
   }
 
   // Receipt

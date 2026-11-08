@@ -1,18 +1,16 @@
+import 'reflect-metadata';
 import { DataSource } from 'typeorm';
-import * as dotenv from 'dotenv';
-import { Category } from './entities/category.entity';
-import { Product } from './entities/product.entity';
-import { ShoppingList } from './entities/shopping-list.entity';
-import { ListItem } from './entities/list-item.entity';
+import { entities } from './entities';
+import { EdenSecurity1794096000000 } from './migrations/1794096000000-eden-security';
 
-dotenv.config();
-
+// Environment must be supplied explicitly by the operator; never load checkout .env files.
 export const AppDataSource = new DataSource({
   type: 'postgres',
   url: process.env.DATABASE_URL,
-  entities: [Category, Product, ShoppingList, ListItem],
-  migrations: ['src/database/migrations/*.ts'],
+  entities,
+  migrations: [EdenSecurity1794096000000],
   synchronize: false,
-  logging: true,
-  ssl: { rejectUnauthorized: false },
+  migrationsRun: false,
+  logging: false,
+  ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: true },
 });

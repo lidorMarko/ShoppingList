@@ -1,6 +1,7 @@
-import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn } from 'typeorm';
+import { Entity, PrimaryGeneratedColumn, Column, CreateDateColumn, Index } from 'typeorm';
 
 @Entity('hidden_products')
+@Index('UQ_eden_hidden_user_product', ['userId', 'productId'], { unique: true })
 export class HiddenProduct {
   @PrimaryGeneratedColumn('uuid')
   id: string;

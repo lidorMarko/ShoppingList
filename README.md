@@ -1,5 +1,7 @@
 # Shopping List
 
+Phase A security changes and required migration/private-storage setup: [Eden integration security](docs/EDEN_INTEGRATION_SECURITY.md). Integration remains disabled by default.
+
 A family shopping app with authentication, shared lists, shopping sessions, and AI-powered receipt analysis.
 
 ## Features
@@ -52,12 +54,14 @@ Create `backend/.env` (see `backend/.env.example`):
 ```env
 DATABASE_URL=postgresql://...           # Supabase → Settings → Database → Connection string (port 5432)
 SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_PUBLISHABLE_KEY=...           # Required for routine Auth getUser (anon key also supported)
+EDEN_INTEGRATION_ENABLED=false
+DATABASE_SSL=true                     # Verified TLS; false only for disposable local PostgreSQL
 SUPABASE_SERVICE_ROLE_KEY=...           # Supabase → Settings → API → service_role key
-SUPABASE_JWT_SECRET=...                 # Supabase → Settings → API → JWT Settings → Legacy JWT Secret
 PORT=3001
 NODE_ENV=development
 APP_INVITE_CODE=YOURCODE                # Secret code required to sign up
-ADMIN_EMAIL=you@example.com            # This user gets the "Global product" checkbox
+ADMIN_EMAIL=you@example.com            # Confirmed Auth email required for catalog administration
 OPENAI_API_KEY=sk-...
 ```
 
@@ -72,11 +76,13 @@ VITE_SUPABASE_ANON_KEY=...              # Supabase → Settings → API → anon
 
 ### 4. Run
 
+Before starting the updated backend, follow the explicit migration and private-storage prerequisites in the security runbook. This security migration extends an existing installation; it does not bootstrap a new application database. Release the updated frontend/backend together. Integration remains disabled until deployment checks are approved.
+
 ```bash
 # Terminal 1 — backend
 cd backend && npm run dev
 # Runs on http://localhost:3001
-# Tables are auto-created on first start
+# Tables are managed by explicit migrations; synchronize is disabled
 
 # Terminal 2 — frontend
 cd frontend && npm run dev
@@ -141,3 +147,5 @@ Base URL: `http://localhost:3001/api`
 | POST | /sessions | Start session from list |
 | POST | /sessions/:id/receipt | Upload receipt |
 | POST | /sessions/:id/analyze-receipt | Run GPT-4o analysis |
+
+Final Phase A local validation and deployment gates: [validation report](docs/PHASE_A_VALIDATION.md).

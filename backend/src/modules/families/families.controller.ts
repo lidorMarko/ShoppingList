@@ -1,10 +1,8 @@
-import { Controller, Post, Delete, Body, UseGuards } from '@nestjs/common';
-import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
+import { Controller, Post, Delete, Body } from '@nestjs/common';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { FamiliesService } from './families.service';
 
 @Controller('families')
-@UseGuards(SupabaseAuthGuard)
 export class FamiliesController {
   constructor(private readonly familiesService: FamiliesService) {}
 

@@ -1,3 +1,4 @@
+import { productsService } from '../services/products.service';
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { categoriesService } from '../services/categories.service';
@@ -10,6 +11,7 @@ const PRESET_COLORS = [
 
 export default function CategoriesPage() {
   const qc = useQueryClient();
+  const { data: isAdmin = false } = useQuery({ queryKey: ['is-admin'], queryFn: productsService.isAdmin });
   const [showForm, setShowForm] = useState(false);
   const [editingCategory, setEditingCategory] = useState<Category | null>(null);
   const [name, setName] = useState('');
@@ -64,12 +66,13 @@ export default function CategoriesPage() {
     <div>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
         <h1 style={{ fontSize: 24, fontWeight: 700 }}>Categories</h1>
-        <button className="btn-primary" onClick={() => { resetForm(); setShowForm(true); }}>
+        {isAdmin && <button className="btn-primary" onClick={() => { resetForm(); setShowForm(true); }}>
           + New Category
-        </button>
+        </button>}
       </div>
 
-      {showForm && (
+      {!isAdmin && <p>Categories are shared across households. Only the catalog admin can change them.</p>}
+      {isAdmin && showForm && (
         <form
           onSubmit={handleSubmit}
           className="card"
@@ -151,7 +154,7 @@ export default function CategoriesPage() {
                 }}
               />
               <span style={{ flex: 1, fontWeight: 500 }}>{c.name}</span>
-              <div style={{ display: 'flex', gap: 6 }}>
+              {isAdmin && <div style={{ display: 'flex', gap: 6 }}>
                 <button className="btn-ghost" style={{ padding: '5px 10px', fontSize: 13 }} onClick={() => openEdit(c)}>
                   Edit
                 </button>
@@ -162,7 +165,7 @@ export default function CategoriesPage() {
                 >
                   Delete
                 </button>
-              </div>
+              </div>}
             </div>
           ))}
         </div>

@@ -58,6 +58,7 @@ export class SessionsService {
     this.supabase = createClient(
       config.get<string>('SUPABASE_URL'),
       config.get<string>('SUPABASE_SERVICE_ROLE_KEY'),
+      { auth: { persistSession: false, autoRefreshToken: false } },
     );
     this.openai = new OpenAI({
       apiKey: config.get<string>('OPENAI_API_KEY'),
@@ -181,50 +182,59 @@ export class SessionsService {
 
   // --- Receipt ---
 
-  private async ensureReceiptsBucket(): Promise<void> {
-    const { data: buckets } = await this.supabase.storage.listBuckets();
-    const exists = buckets?.some((b) => b.name === 'receipts');
-    if (!exists) {
-      const { error } = await this.supabase.storage.createBucket('receipts', { public: true });
-      if (error) throw new InternalServerErrorException(`Could not create storage bucket: ${error.message}`);
+  private receiptLocation(session: ShoppingSession): { bucket: string; key: string } {
+    const stored = session.receiptUrl;
+    if (!stored) throw new BadRequestException('No receipt uploaded');
+    let bucket = 'receipts-private', key: string;
+    if (stored.startsWith('private:')) key = stored.slice(8);
+    else {
+      // Legacy URLs are parsed, never fetched. Only this project's receipt objects are accepted.
+      let url: URL;
+      try { url = new URL(stored); } catch { throw new BadRequestException('Invalid receipt reference'); }
+      const project = new URL(this.config.get<string>('SUPABASE_URL'));
+      const prefix = '/storage/v1/object/public/receipts/';
+      if (url.origin !== project.origin || !url.pathname.startsWith(prefix) || url.username || url.password || url.search || url.hash) throw new BadRequestException('Invalid receipt reference');
+      bucket = 'receipts';
+      try { key = decodeURIComponent(url.pathname.slice(prefix.length)); } catch { throw new BadRequestException('Invalid receipt reference'); }
     }
+    if (!new RegExp(`^${session.id}-[0-9a-f-]{36}\\.(jpg|jpeg|png|gif|webp|pdf)$`, 'i').test(key)) throw new BadRequestException('Invalid receipt reference');
+    return { bucket, key };
+  }
+
+  private async requirePrivateBucket(bucket: string) {
+    const { data, error } = await this.supabase.storage.getBucket(bucket);
+    if (error || !data || data.public !== false) throw new InternalServerErrorException('Private receipt storage must be configured');
+  }
+
+  async downloadReceipt(sessionId: string) {
+    const session = await this.findOne(sessionId);
+    const { bucket, key } = this.receiptLocation(session);
+    await this.requirePrivateBucket(bucket);
+    const { data, error } = await this.supabase.storage.from(bucket).download(key);
+    if (error || !data) throw new InternalServerErrorException('Receipt unavailable');
+    const ext = key.split('.').pop().toLowerCase();
+    const types = { jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', pdf: 'application/pdf' };
+    return { buffer: Buffer.from(await data.arrayBuffer()), contentType: types[ext], filename: key };
   }
 
   async uploadReceipt(sessionId: string, file: Express.Multer.File): Promise<ShoppingSession> {
     const session = await this.findOne(sessionId);
-    await this.ensureReceiptsBucket();
-
-    const ext = file.originalname.split('.').pop();
+    const extensions = { 'image/jpeg': 'jpg', 'image/png': 'png', 'image/gif': 'gif', 'image/webp': 'webp', 'application/pdf': 'pdf' };
+    const ext = extensions[file.mimetype];
+    if (!ext) throw new BadRequestException('Unsupported receipt type');
+    await this.requirePrivateBucket('receipts-private');
     const filename = `${sessionId}-${uuid()}.${ext}`;
-
-    const { error } = await this.supabase.storage
-      .from('receipts')
-      .upload(filename, file.buffer, { contentType: file.mimetype, upsert: true });
-
-    if (error) throw new InternalServerErrorException(error.message);
-
-    const { data } = this.supabase.storage.from('receipts').getPublicUrl(filename);
-
-    session.receiptUrl = data.publicUrl;
+    const { error } = await this.supabase.storage.from('receipts-private').upload(filename, file.buffer, { contentType: file.mimetype, upsert: false });
+    if (error) throw new InternalServerErrorException('Receipt upload failed');
+    session.receiptUrl = `private:${filename}`;
     await this.sessionRepo.save(session);
     return this.findOne(sessionId);
   }
 
   async analyzeReceipt(sessionId: string): Promise<ShoppingSession> {
     const session = await this.findOne(sessionId);
-
-    if (!session.receiptUrl) {
-      throw new BadRequestException('No receipt uploaded for this session');
-    }
-
-    const response = await fetch(session.receiptUrl);
-    if (!response.ok) {
-      throw new InternalServerErrorException('Failed to fetch receipt file');
-    }
-
-    const buffer = Buffer.from(await response.arrayBuffer());
-    const contentType = response.headers.get('content-type') || 'image/jpeg';
-    const isPdf = contentType === 'application/pdf' || session.receiptUrl.endsWith('.pdf');
+    const { buffer, contentType } = await this.downloadReceipt(sessionId);
+    const isPdf = contentType === 'application/pdf';
 
     // Build the product list for the prompt
     const items = session.items ?? [];
@@ -300,7 +310,7 @@ export class SessionsService {
         receiptTotal: parsed.receiptTotal ?? null,
       };
     } catch (err) {
-      throw new InternalServerErrorException(`Receipt analysis failed: ${err.message}`);
+      throw new InternalServerErrorException('Receipt analysis failed');
     }
 
     // Mark found items as purchased and store their price

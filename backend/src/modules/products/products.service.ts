@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, OnApplicationBootstrap } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { In, IsNull, Not, Repository } from 'typeorm';
@@ -9,36 +9,8 @@ import { HiddenProduct } from '../../database/entities/hidden-product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
-const DEFAULT_PRODUCTS: { name: string; unit: string }[] = [
-  { name: 'Milk', unit: 'L' },
-  { name: 'Eggs', unit: 'pcs' },
-  { name: 'Bread', unit: 'pcs' },
-  { name: 'Butter', unit: 'g' },
-  { name: 'Cheese', unit: 'g' },
-  { name: 'Yogurt', unit: 'pcs' },
-  { name: 'Chicken breast', unit: 'kg' },
-  { name: 'Ground beef', unit: 'kg' },
-  { name: 'Tomatoes', unit: 'kg' },
-  { name: 'Cucumbers', unit: 'kg' },
-  { name: 'Onions', unit: 'kg' },
-  { name: 'Garlic', unit: 'pcs' },
-  { name: 'Potatoes', unit: 'kg' },
-  { name: 'Carrots', unit: 'kg' },
-  { name: 'Apples', unit: 'kg' },
-  { name: 'Bananas', unit: 'kg' },
-  { name: 'Oranges', unit: 'kg' },
-  { name: 'Rice', unit: 'kg' },
-  { name: 'Pasta', unit: 'g' },
-  { name: 'Olive oil', unit: 'ml' },
-  { name: 'Salt', unit: 'g' },
-  { name: 'Sugar', unit: 'g' },
-  { name: 'Flour', unit: 'kg' },
-  { name: 'Tuna', unit: 'pcs' },
-  { name: 'Toilet paper', unit: 'pcs' },
-];
-
 @Injectable()
-export class ProductsService implements OnApplicationBootstrap {
+export class ProductsService {
   constructor(
     @InjectRepository(Product)
     private readonly productRepo: Repository<Product>,
@@ -50,15 +22,6 @@ export class ProductsService implements OnApplicationBootstrap {
     private readonly hiddenRepo: Repository<HiddenProduct>,
     private readonly config: ConfigService,
   ) {}
-
-  async onApplicationBootstrap() {
-    const existing = await this.productRepo.findOne({ where: { userId: IsNull() } });
-    if (!existing) {
-      await this.productRepo.save(
-        DEFAULT_PRODUCTS.map((p) => this.productRepo.create({ ...p, userId: null })),
-      );
-    }
-  }
 
   private async visibleUserIds(userId: string): Promise<string[]> {
     const profile = await this.profileRepo.findOne({ where: { id: userId } });
@@ -95,8 +58,10 @@ export class ProductsService implements OnApplicationBootstrap {
     const avgRows: { productId: string; avgPrice: string }[] = await this.itemRepo.manager.query(
       `SELECT "productId", AVG(CAST(price AS NUMERIC)) AS "avgPrice"
        FROM session_items
-       WHERE "isPurchased" = true AND price IS NOT NULL
-       GROUP BY "productId"`,
+       JOIN shopping_sessions s ON s.id = session_items."sessionId"
+       JOIN shopping_lists l ON l.id = s."shoppingListId"
+       WHERE session_items."isPurchased" = true AND price IS NOT NULL AND l."userId" = ANY($1::text[])
+       GROUP BY "productId"`, [userIds],
     );
 
     const avgMap = new Map(avgRows.map((r) => [r.productId, parseFloat(r.avgPrice)]));
@@ -130,7 +95,7 @@ export class ProductsService implements OnApplicationBootstrap {
     } else {
       const existing = await this.hiddenRepo.findOne({ where: { userId, productId: id } });
       if (!existing) {
-        await this.hiddenRepo.save(this.hiddenRepo.create({ userId, productId: id }));
+        await this.hiddenRepo.upsert({ userId, productId: id }, ['userId', 'productId']);
       }
     }
   }

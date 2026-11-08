@@ -1,6 +1,8 @@
 # Shopping List App — Project Context
 
 ## Current Status
+Phase A security is implemented locally, not deployed or connected. Read [the security and migration runbook](docs/EDEN_INTEGRATION_SECURITY.md) before enabling the integration.
+
 Full-featured family shopping app with authentication, family grouping, receipt OCR (GPT-4o), product image support, and per-user/family data isolation.
 
 ---
@@ -18,10 +20,10 @@ ShoppingList/
 
 ### Backend
 - **Framework**: NestJS (modular, decorator-based, TypeScript-first)
-- **ORM**: TypeORM with `synchronize: true` in dev (auto-creates/alters tables). Production should use migrations.
+- **ORM**: TypeORM with `synchronize: false` in all environments; explicit migrations are required.
 - **Database**: Supabase-hosted PostgreSQL — connected via `DATABASE_URL` with SSL
 - **Auth**: Supabase Auth — token verified per-request via `supabase.auth.getUser(token)` (no shared JWT secret needed)
-- **Storage**: Supabase Storage — receipt uploads and product images stored in `receipts` / `product-images` buckets (auto-created on first use)
+- **Storage**: Supabase Storage — private receipt/product-image storage; buckets are preconfigured by an operator, never auto-created
 - **AI**: OpenAI GPT-4o for receipt analysis (image + PDF support via `pdf-parse`)
 - **Validation**: class-validator + class-transformer with global ValidationPipe
 - **API prefix**: `/api`
@@ -73,7 +75,7 @@ families         id, name, inviteCode (6-char, unique), timestamps
 
 ### Products
 - Admin user (`ADMIN_EMAIL` in `backend/.env`) sees a **"Global product"** checkbox when creating a product — ticking it makes the product visible to all families
-- Default product catalog (25 common items) is seeded automatically on first backend start if no global products exist
+- Catalog seeding is an explicit operator task; application startup never seeds products
 - Products track **average purchase price** computed from past session items
 
 ### Receipt Analysis
@@ -86,7 +88,7 @@ families         id, name, inviteCode (6-char, unique), timestamps
 
 ## API Endpoints
 
-All endpoints except `POST /api/auth/validate-invite` require a valid Supabase Bearer token.
+All endpoints except `POST /api/auth/validate-invite` require authentication and the shared resource policy. Optional Eden credentials grant read-only shopping access, never account/session/media administration.
 
 ### Auth
 | Method | Path | Description |
@@ -166,12 +168,14 @@ Create `backend/.env`:
 ```env
 DATABASE_URL=postgresql://...          # Supabase → Settings → Database → Connection string (port 5432)
 SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_PUBLISHABLE_KEY=...           # Required for routine Auth getUser (anon key also supported)
+EDEN_INTEGRATION_ENABLED=false
+DATABASE_SSL=true                     # Verified TLS; false only for disposable local PostgreSQL
 SUPABASE_SERVICE_ROLE_KEY=...          # Supabase → Settings → API → service_role key
 PORT=3001
 NODE_ENV=development
-SUPABASE_JWT_SECRET=...                # Supabase → Settings → API → JWT Settings → Legacy JWT Secret (Reveal)
 APP_INVITE_CODE=YOURCODE               # Secret code users must enter to sign up
-ADMIN_EMAIL=you@example.com           # This user gets the "Global product" checkbox
+ADMIN_EMAIL=you@example.com           # Confirmed Auth email required for catalog administration
 OPENAI_API_KEY=sk-...
 ```
 
@@ -187,8 +191,8 @@ VITE_SUPABASE_ANON_KEY=...             # Supabase → Settings → API → anon/
 cd backend
 npm run dev
 # Runs on http://localhost:3001
-# Tables are auto-created on first start (synchronize: true)
-# Default product catalog is seeded automatically if no global products exist
+# Explicit migrations are required; synchronize is disabled
+# Catalog seeding is an explicit operator task
 ```
 
 ### 5. Run frontend
@@ -275,13 +279,14 @@ Products created by this script are **global** (`userId = null`) — visible to 
 - [x] Family system (create, join via invite code, leave)
 - [x] Global product catalog (admin-only, visible to all)
 - [x] Hide global products per-family instead of deleting
-- [x] Default product catalog seeded on first backend start
+- [ ] Default catalog initialization requires an explicit operator task
 - [x] Seed script for bulk product import with images
 
 ## Outstanding Work
 - [ ] Real-time sync between family members (WebSocket or Supabase Realtime)
 - [ ] Push notifications for list changes
-- [ ] Production migrations (replace TypeORM `synchronize` with migration files)
-- [ ] Unit / integration tests
+- [x] Validate explicit security migrations against fresh disposable PostgreSQL 17.6; synchronize is disabled
+- [ ] Apply migrations only after deployment prerequisites and explicit approval
+- [x] Phase A validation: 30 security tests, 10 real PostgreSQL tests and 2 browser media tests passed
 - [x] Deploy backend to Render, frontend to Vercel
 - [x] Keep-alive ping via macOS launchd (every 13 min) to prevent Render free-tier spin-down

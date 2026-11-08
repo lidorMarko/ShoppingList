@@ -1,3 +1,4 @@
+import { UploadsModule } from '../uploads/uploads.module';
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -9,7 +10,7 @@ import { ProductsService } from './products.service';
 import { ProductsController } from './products.controller';
 
 @Module({
-  imports: [ConfigModule, TypeOrmModule.forFeature([Product, SessionItem, Profile, HiddenProduct])],
+  imports: [UploadsModule, ConfigModule, TypeOrmModule.forFeature([Product, SessionItem, Profile, HiddenProduct])],
   controllers: [ProductsController],
   providers: [ProductsService, ConfigService],
   exports: [ProductsService],

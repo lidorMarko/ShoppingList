@@ -7,6 +7,7 @@ export interface Category {
 }
 
 export interface Product {
+  userId: string | null;
   id: string;
   name: string;
   unit?: string;
@@ -22,7 +23,7 @@ export interface ListItem {
   id: string;
   shoppingListId: string;
   productId: string;
-  product: Product;
+  product: Product | null;
   quantity?: number;
   unit?: string;
   notes?: string;
@@ -43,7 +44,7 @@ export interface SessionItem {
   id: string;
   sessionId: string;
   productId: string;
-  product: Product;
+  product: Product | null;
   quantity?: number;
   unit?: string;
   notes?: string;

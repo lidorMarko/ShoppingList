@@ -1,3 +1,4 @@
+import ProductImage from '../components/ProductImage';
 import { useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -349,7 +350,8 @@ function ItemRow({
         style={{ width: 18, height: 18, cursor: 'pointer', accentColor: 'var(--primary)' }}
       />
       {item.product?.imageUrl ? (
-        <img
+        <ProductImage
+          productId={item.product.id}
           src={item.product.imageUrl}
           alt={item.product.name}
           style={{ width: 36, height: 36, objectFit: 'cover', borderRadius: 6, flexShrink: 0 }}
@@ -363,7 +365,7 @@ function ItemRow({
             color: item.isPurchased ? 'var(--text-muted)' : 'var(--text)',
           }}
         >
-          {item.product?.name}
+          {item.product?.name ?? 'Product no longer available'}
         </span>
         {(item.quantity || item.unit || item.notes) && (
           <span style={{ fontSize: 13, color: 'var(--text-muted)', marginLeft: 8 }}>

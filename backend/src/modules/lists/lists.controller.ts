@@ -8,9 +8,7 @@ import {
   Body,
   HttpCode,
   HttpStatus,
-  UseGuards,
 } from '@nestjs/common';
-import { SupabaseAuthGuard } from '../auth/supabase-auth.guard';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { ListsService } from './lists.service';
 import { CreateListDto } from './dto/create-list.dto';
@@ -18,7 +16,6 @@ import { UpdateListDto } from './dto/update-list.dto';
 import { CopyListDto } from './dto/copy-list.dto';
 
 @Controller('lists')
-@UseGuards(SupabaseAuthGuard)
 export class ListsController {
   constructor(private readonly listsService: ListsService) {}
 

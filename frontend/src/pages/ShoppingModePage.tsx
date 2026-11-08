@@ -1,4 +1,6 @@
-import { useRef, useState } from 'react';
+import ProductImage from '../components/ProductImage';
+import api from '../services/api';
+import { useEffect, useRef, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { sessionsService } from '../services/sessions.service';
@@ -33,11 +35,14 @@ export default function ShoppingModePage() {
   const [unit, setUnit] = useState('');
 
   const [receiptUploading, setReceiptUploading] = useState(false);
+  const [receiptPreview, setReceiptPreview] = useState('');
+  const [receiptType, setReceiptType] = useState('');
+
   const [receiptError, setReceiptError] = useState('');
   const [showReceiptFull, setShowReceiptFull] = useState(false);
   const receiptInputRef = useRef<HTMLInputElement>(null);
 
-  const { data: session, isLoading } = useQuery({
+  const { data: session, isLoading, dataUpdatedAt } = useQuery({
     queryKey: ['session', sessionId],
     queryFn: () => sessionsService.getOne(sessionId!),
     enabled: !!sessionId,
@@ -111,6 +116,19 @@ export default function ShoppingModePage() {
     }
   };
 
+  useEffect(() => {
+    let disposed = false, objectUrl = '';
+    setReceiptPreview('');
+    if (session?.receiptUrl) {
+      api.get(`/sessions/${session.id}/receipt/file`, { responseType: 'blob' }).then(({ data }) => {
+        if (disposed) return;
+        objectUrl = URL.createObjectURL(data);
+        setReceiptType(data.type); setReceiptPreview(objectUrl);
+      }).catch(() => { if (!disposed) setReceiptError('Receipt could not be loaded securely.'); });
+    }
+    return () => { disposed = true; if (objectUrl) URL.revokeObjectURL(objectUrl); };
+  }, [session?.id, dataUpdatedAt]);
+
   if (isLoading || !session) {
     return (
       <div className="loading-state">
@@ -127,10 +145,7 @@ export default function ShoppingModePage() {
   const pct = total > 0 ? Math.round((purchased / total) * 100) : 0;
   const grouped = groupByCategory(items);
   const analysis = session.receiptAnalysis;
-  const isPdfReceipt = !!session.receiptUrl && (
-    session.receiptUrl.toLowerCase().endsWith('.pdf') ||
-    session.receiptUrl.toLowerCase().includes('.pdf?')
-  );
+  const isPdfReceipt = receiptType === 'application/pdf';
 
   const handleAddItem = (e: React.FormEvent) => {
     e.preventDefault();
@@ -234,7 +249,7 @@ export default function ShoppingModePage() {
                 className="btn-ghost"
                 style={{ fontSize: 12, padding: '4px 10px' }}
                 onClick={() => {
-                  if (isPdfReceipt) window.open(session.receiptUrl, '_blank');
+                  if (isPdfReceipt) receiptPreview && window.open(receiptPreview, '_blank', 'noopener,noreferrer');
                   else setShowReceiptFull(true);
                 }}
               >
@@ -265,7 +280,7 @@ export default function ShoppingModePage() {
 
           {isPdfReceipt ? (
             <div
-              onClick={() => window.open(session.receiptUrl, '_blank')}
+              onClick={() => receiptPreview && window.open(receiptPreview, '_blank', 'noopener,noreferrer')}
               style={{
                 display: 'flex', alignItems: 'center', gap: 12,
                 padding: '14px 16px', borderRadius: 6, cursor: 'pointer',
@@ -282,7 +297,7 @@ export default function ShoppingModePage() {
             </div>
           ) : (
             <img
-              src={session.receiptUrl}
+              src={receiptPreview || undefined}
               alt="Receipt"
               onClick={() => setShowReceiptFull(true)}
               style={{
@@ -395,7 +410,7 @@ export default function ShoppingModePage() {
           }}
         >
           <img
-            src={session.receiptUrl}
+            src={receiptPreview || undefined}
             alt="Receipt full"
             style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'contain', borderRadius: 8 }}
           />
@@ -591,7 +606,8 @@ function ShoppingItemRow({
 
       {/* Product image */}
       {item.product?.imageUrl && (
-        <img
+        <ProductImage
+          productId={item.product.id}
           src={item.product.imageUrl}
           alt={item.product.name}
           style={{ width: 40, height: 40, objectFit: 'cover', borderRadius: 8, flexShrink: 0 }}
@@ -609,7 +625,7 @@ function ShoppingItemRow({
             transition: 'all 0.2s',
           }}
         >
-          {item.product?.name}
+          {item.product?.name ?? 'Product no longer available'}
         </span>
         {(item.quantity || item.unit || item.notes || item.price) && (
           <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2, display: 'flex', gap: 8 }}>

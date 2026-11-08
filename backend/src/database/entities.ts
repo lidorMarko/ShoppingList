@@ -1,0 +1,11 @@
+import { Category } from './entities/category.entity';
+import { Product } from './entities/product.entity';
+import { ShoppingList } from './entities/shopping-list.entity';
+import { ListItem } from './entities/list-item.entity';
+import { ShoppingSession } from './entities/shopping-session.entity';
+import { SessionItem } from './entities/session-item.entity';
+import { Profile } from './entities/profile.entity';
+import { Family } from './entities/family.entity';
+import { HiddenProduct } from './entities/hidden-product.entity';
+import { IntegrationCredential } from './entities/integration-credential.entity';
+export const entities = [Category, Product, ShoppingList, ListItem, ShoppingSession, SessionItem, Profile, Family, HiddenProduct, IntegrationCredential];

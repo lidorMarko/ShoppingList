@@ -8,6 +8,7 @@ import { useTheme } from '../hooks/useTheme';
 import type { Profile } from '../types/index';
 
 const NAV_ITEMS = [
+  { to: '/integrations/eden', label: 'Eden', icon: '🔗' },
   { to: '/lists',      label: 'Lists',      icon: '📋' },
   { to: '/sessions',   label: 'Shopping',   icon: '🛒' },
   { to: '/products',   label: 'Products',   icon: '📦' },

@@ -29,18 +29,18 @@ export class ListItemsController {
   }
 
   @Put(':itemId')
-  update(@Param('itemId') itemId: string, @Body() dto: UpdateListItemDto) {
-    return this.listItemsService.update(itemId, dto);
+  update(@Param('listId') listId: string, @Param('itemId') itemId: string, @Body() dto: UpdateListItemDto) {
+    return this.listItemsService.update(listId, itemId, dto);
   }
 
   @Patch(':itemId/toggle')
-  toggle(@Param('itemId') itemId: string) {
-    return this.listItemsService.togglePurchased(itemId);
+  toggle(@Param('listId') listId: string, @Param('itemId') itemId: string) {
+    return this.listItemsService.togglePurchased(listId, itemId);
   }
 
   @Delete(':itemId')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('itemId') itemId: string) {
-    return this.listItemsService.remove(itemId);
+  remove(@Param('listId') listId: string, @Param('itemId') itemId: string) {
+    return this.listItemsService.remove(listId, itemId);
   }
 }
