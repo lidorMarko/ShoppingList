@@ -1,9 +1,11 @@
 import { Injectable, NotFoundException, OnApplicationBootstrap } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, IsNull, Repository } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import { In, IsNull, Not, Repository } from 'typeorm';
 import { Product } from '../../database/entities/product.entity';
 import { SessionItem } from '../../database/entities/session-item.entity';
 import { Profile } from '../../database/entities/profile.entity';
+import { HiddenProduct } from '../../database/entities/hidden-product.entity';
 import { CreateProductDto } from './dto/create-product.dto';
 import { UpdateProductDto } from './dto/update-product.dto';
 
@@ -44,6 +46,9 @@ export class ProductsService implements OnApplicationBootstrap {
     private readonly itemRepo: Repository<SessionItem>,
     @InjectRepository(Profile)
     private readonly profileRepo: Repository<Profile>,
+    @InjectRepository(HiddenProduct)
+    private readonly hiddenRepo: Repository<HiddenProduct>,
+    private readonly config: ConfigService,
   ) {}
 
   async onApplicationBootstrap() {
@@ -62,10 +67,27 @@ export class ProductsService implements OnApplicationBootstrap {
     return members.map((m) => m.id);
   }
 
+  isAdmin(email: string): boolean {
+    const adminEmail = this.config.get<string>('ADMIN_EMAIL');
+    return !!adminEmail && email === adminEmail;
+  }
+
   async findAll(userId: string): Promise<(Product & { avgPrice: number | null })[]> {
     const userIds = await this.visibleUserIds(userId);
+
+    const hidden = await this.hiddenRepo.find({
+      where: { userId: In(userIds) },
+      select: ['productId'],
+    });
+    const hiddenIds = hidden.map((h) => h.productId);
+
+    const baseConditions = [{ userId: In(userIds) }, { userId: IsNull() }];
+    const whereConditions = hiddenIds.length > 0
+      ? baseConditions.map((c) => ({ ...c, id: Not(In(hiddenIds)) }))
+      : baseConditions;
+
     const products = await this.productRepo.find({
-      where: [{ userId: In(userIds) }, { userId: IsNull() }],
+      where: whereConditions,
       relations: ['category'],
       order: { name: 'ASC' },
     });
@@ -82,16 +104,15 @@ export class ProductsService implements OnApplicationBootstrap {
   }
 
   async findOne(id: string): Promise<Product> {
-    const product = await this.productRepo.findOne({
-      where: { id },
-      relations: ['category'],
-    });
+    const product = await this.productRepo.findOne({ where: { id }, relations: ['category'] });
     if (!product) throw new NotFoundException(`Product ${id} not found`);
     return product;
   }
 
-  async create(dto: CreateProductDto, userId: string): Promise<Product> {
-    const product = this.productRepo.create({ ...dto, userId });
+  async create(dto: CreateProductDto, userId: string, userEmail: string): Promise<Product> {
+    const { isGlobal, ...rest } = dto;
+    const effectiveUserId = isGlobal && this.isAdmin(userEmail) ? null : userId;
+    const product = this.productRepo.create({ ...rest, userId: effectiveUserId });
     return this.productRepo.save(product);
   }
 
@@ -101,8 +122,16 @@ export class ProductsService implements OnApplicationBootstrap {
     return this.productRepo.save(product);
   }
 
-  async remove(id: string): Promise<void> {
+  async remove(id: string, userId: string): Promise<void> {
     const product = await this.findOne(id);
-    await this.productRepo.remove(product);
+
+    if (product.userId === userId) {
+      await this.productRepo.remove(product);
+    } else {
+      const existing = await this.hiddenRepo.findOne({ where: { userId, productId: id } });
+      if (!existing) {
+        await this.hiddenRepo.save(this.hiddenRepo.create({ userId, productId: id }));
+      }
+    }
   }
 }

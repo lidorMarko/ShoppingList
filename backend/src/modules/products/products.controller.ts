@@ -27,14 +27,19 @@ export class ProductsController {
     return this.productsService.findAll(user.id);
   }
 
+  @Get('me/is-admin')
+  isAdmin(@CurrentUser() user: { id: string; email: string }) {
+    return { isAdmin: this.productsService.isAdmin(user.email) };
+  }
+
   @Get(':id')
   findOne(@Param('id') id: string) {
     return this.productsService.findOne(id);
   }
 
   @Post()
-  create(@Body() dto: CreateProductDto, @CurrentUser() user: { id: string }) {
-    return this.productsService.create(dto, user.id);
+  create(@Body() dto: CreateProductDto, @CurrentUser() user: { id: string; email: string }) {
+    return this.productsService.create(dto, user.id, user.email);
   }
 
   @Put(':id')
@@ -44,7 +49,7 @@ export class ProductsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  remove(@Param('id') id: string) {
-    return this.productsService.remove(id);
+  remove(@Param('id') id: string, @CurrentUser() user: { id: string }) {
+    return this.productsService.remove(id, user.id);
   }
 }

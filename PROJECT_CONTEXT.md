@@ -1,9 +1,7 @@
 # Shopping List App — Project Context
 
 ## Current Status
-MVP Phase 1 complete. Backend API and React frontend fully scaffolded and wired together.
-Database switched to Supabase-hosted PostgreSQL (no local Docker required).
-Node.js not installed on the development machine — install steps listed below before running.
+Full-featured family shopping app with authentication, family grouping, receipt OCR (GPT-4o), product image support, and per-user/family data isolation.
 
 ---
 
@@ -12,52 +10,121 @@ Node.js not installed on the development machine — install steps listed below 
 ### Monorepo Structure
 ```
 ShoppingList/
-  backend/      NestJS + TypeORM + PostgreSQL
-  frontend/     React + Vite + TanStack Query
-  docker/       docker-compose kept for reference (not used — Supabase is the DB)
+  backend/          NestJS + TypeORM + PostgreSQL (Supabase)
+  frontend/         React + Vite + TanStack Query
+  scripts/          Seed script for bulk-importing products with images
   PROJECT_CONTEXT.md
 ```
 
 ### Backend
 - **Framework**: NestJS (modular, decorator-based, TypeScript-first)
-- **ORM**: TypeORM with `synchronize: true` in dev (auto-creates tables). Production should use migrations.
-- **Database**: Supabase-hosted PostgreSQL — connected via `DATABASE_URL` with SSL (`rejectUnauthorized: false`)
+- **ORM**: TypeORM with `synchronize: true` in dev (auto-creates/alters tables). Production should use migrations.
+- **Database**: Supabase-hosted PostgreSQL — connected via `DATABASE_URL` with SSL
+- **Auth**: Supabase Auth — token verified per-request via `supabase.auth.getUser(token)` (no shared JWT secret needed)
+- **Storage**: Supabase Storage — receipt uploads and product images stored in `receipts` / `product-images` buckets (auto-created on first use)
+- **AI**: OpenAI GPT-4o for receipt analysis (image + PDF support via `pdf-parse`)
 - **Validation**: class-validator + class-transformer with global ValidationPipe
-- **CORS**: pre-configured for Vite dev server (port 5173)
 - **API prefix**: `/api`
 
 ### Database Schema
 ```
-categories  id, name (unique), color, timestamps
-products    id, name, unit?, categoryId? → FK categories, timestamps
-shopping_lists  id, name, timestamps
-list_items  id, shoppingListId → FK, productId → FK, quantity?, unit?, notes?, isPurchased (bool), timestamps
+categories       id, name (unique), color, timestamps
+products         id, name, unit?, categoryId? → FK categories, imageUrl?, userId? (null = global), timestamps
+hidden_products  id, userId, productId (tracks per-family product hide)
+shopping_lists   id, name, userId, timestamps
+list_items       id, shoppingListId → FK, productId → FK, quantity?, unit?, notes?, isPurchased, timestamps
+shopping_sessions  id, shoppingListId → FK, status, receiptUrl?, receiptAnalysis (JSONB), startedAt, completedAt?
+session_items    id, sessionId → FK, productId → FK, quantity?, unit?, notes?, isPurchased, price?, timestamps
+profiles         id (= Supabase auth user id), email, displayName?, familyId?, familyRole, timestamps
+families         id, name, inviteCode (6-char, unique), timestamps
 ```
 
 ### Frontend
-- **Routing**: react-router-dom v6
-- **Data fetching**: TanStack Query v5 (automatic cache invalidation)
-- **HTTP client**: axios (with `/api` proxy through Vite dev server)
+- **Routing**: react-router-dom v6 (protected routes — redirects to `/login` if unauthenticated)
+- **Auth**: `@supabase/supabase-js` client — session stored automatically, passed as Bearer token on every API call
+- **Data fetching**: TanStack Query v5 (cache cleared on sign-in/sign-out to prevent cross-user data leaks)
+- **HTTP client**: axios with request interceptor that injects `Authorization: Bearer <token>`
 - **Styling**: plain CSS variables + utility classes (no external UI library)
+
+---
+
+## Features
+
+### Authentication & Access Control
+- Sign up requires an **invite code** (set via `APP_INVITE_CODE` in `backend/.env`) — prevents public registration
+- On sign-up the invite code is validated server-side before the Supabase account is created
+- If a logged-in user has no profile yet (e.g. signed up before profile was created), they are redirected to `/invite` to enter the code
+- Sign in / sign out via Supabase Auth email + password
+
+### Family System
+- Users can create a family (generates a 6-character invite code) or join one via invite code
+- Family members share shopping lists, sessions, and products
+- Family admin is the creator; others are members
+- Leaving a family: if the last member, the family is deleted
+- Accessible via the user menu → **Family**
+
+### Data Isolation
+- **Lists**: visible only to the creating user + their family members
+- **Sessions**: same as lists (filtered by list ownership)
+- **Products**:
+  - `userId = null` → **global** (visible to everyone, e.g. default catalog + admin-seeded items)
+  - `userId = <user>` → visible only to that user + their family
+  - "Deleting" a global product hides it for your family (creates a `hidden_products` record) rather than deleting it from the DB
+
+### Products
+- Admin user (`ADMIN_EMAIL` in `backend/.env`) sees a **"Global product"** checkbox when creating a product — ticking it makes the product visible to all families
+- Default product catalog (25 common items) is seeded automatically on first backend start if no global products exist
+- Products track **average purchase price** computed from past session items
+
+### Receipt Analysis
+- Upload a photo or PDF receipt on the shopping session page
+- GPT-4o extracts: store name, matched items with prices, unmatched items, total
+- Matched items are automatically marked as purchased with their price
+- Session card shows store name and total; Products page shows average price per product
 
 ---
 
 ## API Endpoints
 
+All endpoints except `POST /api/auth/validate-invite` require a valid Supabase Bearer token.
+
+### Auth
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/auth/validate-invite | Validate invite code (no auth required) |
+| GET | /api/auth/me?inviteCode= | Get/create profile (creates on first call with valid invite code) |
+
+### Families
+| Method | Path | Description |
+|--------|------|-------------|
+| POST | /api/families | Create a new family |
+| POST | /api/families/join | Join family via invite code |
+| DELETE | /api/families/leave | Leave current family |
+
+### Categories
 | Method | Path | Description |
 |--------|------|-------------|
 | GET | /api/categories | List all categories |
 | POST | /api/categories | Create category |
 | PUT | /api/categories/:id | Update category |
 | DELETE | /api/categories/:id | Delete category |
-| GET | /api/products | List products (optional ?search=) |
-| POST | /api/products | Create product |
+
+### Products
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/products | List products for current user/family (+ global) |
+| GET | /api/products/me/is-admin | Returns `{ isAdmin: boolean }` |
+| POST | /api/products | Create product (`isGlobal: true` for admin to make global) |
 | PUT | /api/products/:id | Update product |
-| DELETE | /api/products/:id | Delete product |
-| GET | /api/lists | List all shopping lists (with items) |
-| POST | /api/lists | Create shopping list |
-| PUT | /api/lists/:id | Rename shopping list |
-| DELETE | /api/lists/:id | Delete shopping list |
+| DELETE | /api/products/:id | Delete own product OR hide global/shared product for family |
+
+### Lists
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/lists | List shopping lists for current user/family |
+| POST | /api/lists | Create list |
+| PUT | /api/lists/:id | Rename list |
+| DELETE | /api/lists/:id | Delete list |
 | POST | /api/lists/:id/copy-items | Copy all items from this list to another |
 | GET | /api/lists/:listId/items | Get items for a list |
 | POST | /api/lists/:listId/items | Add item to list |
@@ -65,72 +132,54 @@ list_items  id, shoppingListId → FK, productId → FK, quantity?, unit?, notes
 | PATCH | /api/lists/:listId/items/:itemId/toggle | Toggle purchased |
 | DELETE | /api/lists/:listId/items/:itemId | Remove item from list |
 
----
-
-## Completed Work
-- [x] Monorepo with separate backend/frontend packages
-- [x] Supabase PostgreSQL integration (DATABASE_URL + SSL)
-- [x] NestJS app with 4 modules: categories, products, lists, list-items
-- [x] TypeORM entities for all 4 tables with correct relationships
-- [x] Full CRUD for categories, products, shopping lists, list items
-- [x] Copy-items-between-lists endpoint (deduplicates by productId, resets isPurchased)
-- [x] Toggle purchased endpoint (PATCH)
-- [x] React frontend with react-router-dom v6
-- [x] TanStack Query for server state
-- [x] Pages: Lists overview, List detail, Products, Categories
-- [x] Features: create/rename/delete lists, add/remove/toggle items, copy items modal
-- [x] Items grouped by category on the list detail page
-- [x] Category color badges on products and items
-
----
-
-## Outstanding Work
-- [ ] Authentication / multi-user support (currently no auth — all users share data)
-- [ ] Real-time sync between household members (WebSocket or polling)
-- [ ] Phase 2: Receipt upload & OCR integration (mark purchased based on receipt scan)
-- [ ] Production migrations (replace TypeORM synchronize with explicit migration files)
-- [ ] Unit / integration tests
-- [ ] Deploy (e.g. Railway, Render, or self-hosted)
+### Sessions
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | /api/sessions | List sessions for current user/family |
+| POST | /api/sessions | Start a session from a list |
+| PATCH | /api/sessions/:id/complete | Mark session complete |
+| DELETE | /api/sessions/:id | Delete session |
+| POST | /api/sessions/:id/receipt | Upload receipt (image or PDF) |
+| POST | /api/sessions/:id/analyze-receipt | Run GPT-4o receipt analysis |
+| POST | /api/sessions/:id/items | Add item to session |
+| PATCH | /api/sessions/:id/items/:itemId | Update session item |
+| PATCH | /api/sessions/:id/items/:itemId/toggle | Toggle item purchased |
+| DELETE | /api/sessions/:id/items/:itemId | Remove item from session |
 
 ---
 
 ## Setup & Running
 
 ### Prerequisites
-- Node.js 20+ (via nvm — see below)
-- A Supabase project (free tier is fine): https://supabase.com
+- Node.js 20+
+- A Supabase project (free tier): https://supabase.com
+- An OpenAI API key (for receipt analysis)
 
-### 0. Install Node.js via nvm (macOS)
-```bash
-brew install nvm
-
-# Add nvm to shell (one-time)
-echo 'export NVM_DIR="$HOME/.nvm"' >> ~/.zshrc
-echo '[ -s "/opt/homebrew/opt/nvm/nvm.sh" ] && \. "/opt/homebrew/opt/nvm/nvm.sh"' >> ~/.zshrc
-source ~/.zshrc
-
-# Install and use LTS
-nvm install --lts
-nvm use --lts
-```
-
-### 1. Get your Supabase connection string
-1. Open your Supabase project → **Settings** → **Database**
-2. Under **Connection string**, copy the **URI** (direct connection, port 5432)
-3. It looks like: `postgresql://postgres:[PASSWORD]@db.[REF].supabase.co:5432/postgres`
-
-### 2. Install dependencies
+### 1. Install dependencies
 ```bash
 # From repo root
-cd backend && npm install
-cd ../frontend && npm install
+npm install
 ```
 
-### 3. Configure environment
-```bash
-cd backend
-cp .env.example .env
-# Paste your Supabase DATABASE_URL into .env
+### 2. Configure backend environment
+Create `backend/.env`:
+```env
+DATABASE_URL=postgresql://...          # Supabase → Settings → Database → Connection string (port 5432)
+SUPABASE_URL=https://xxx.supabase.co
+SUPABASE_SERVICE_ROLE_KEY=...          # Supabase → Settings → API → service_role key
+PORT=3001
+NODE_ENV=development
+SUPABASE_JWT_SECRET=...                # Supabase → Settings → API → JWT Settings → Legacy JWT Secret (Reveal)
+APP_INVITE_CODE=YOURCODE               # Secret code users must enter to sign up
+ADMIN_EMAIL=you@example.com           # This user gets the "Global product" checkbox
+OPENAI_API_KEY=sk-...
+```
+
+### 3. Configure frontend environment
+Create `frontend/.env.local`:
+```env
+VITE_SUPABASE_URL=https://xxx.supabase.co
+VITE_SUPABASE_ANON_KEY=...             # Supabase → Settings → API → anon/public key
 ```
 
 ### 4. Run backend
@@ -139,6 +188,7 @@ cd backend
 npm run dev
 # Runs on http://localhost:3001
 # Tables are auto-created on first start (synchronize: true)
+# Default product catalog is seeded automatically if no global products exist
 ```
 
 ### 5. Run frontend
@@ -148,3 +198,90 @@ npm run dev
 # Runs on http://localhost:5173
 # Proxies /api → localhost:3001 automatically
 ```
+
+### 6. First sign-up
+1. Go to `http://localhost:5173` → click **Sign Up**
+2. Enter your email, password, and the **invite code** from `APP_INVITE_CODE`
+3. If email confirmation is required, check your inbox and click the link, then sign in
+4. To skip email confirmation in development: Supabase Dashboard → Authentication → Providers → Email → disable "Enable email confirmations"
+
+---
+
+## Keep-Alive Ping (Render Free Tier)
+
+Render free-tier servers spin down after ~15 minutes of inactivity. A macOS launchd job pings the server every 13 minutes to prevent this.
+
+- **Script**: `~/bin/ping-shoppinglist.sh` — curls the server and logs the HTTP status
+- **Scheduler**: `~/Library/LaunchAgents/com.shoppinglist.ping.plist` — runs on login, every 780 seconds
+- **Logs**: `~/Library/Logs/shoppinglist-ping.log`
+
+```bash
+# Stop pinging
+launchctl unload ~/Library/LaunchAgents/com.shoppinglist.ping.plist
+
+# Start pinging
+launchctl load ~/Library/LaunchAgents/com.shoppinglist.ping.plist
+
+# Check status (second column = last exit code, 0 = OK)
+launchctl list | grep shoppinglist
+
+# View logs
+cat ~/Library/Logs/shoppinglist-ping.log
+```
+
+---
+
+## Seeding Products with Images
+
+Drop product images into `scripts/seed-images/` then run:
+
+```bash
+SEED_EMAIL=you@example.com SEED_PASSWORD=yourpassword node scripts/seed-products.mjs
+```
+
+**Requirements:**
+- Backend must be running (`npm run dev` in `/backend`)
+- The email must belong to the `ADMIN_EMAIL` account (so products are created as global)
+
+**Filename conventions:**
+```
+# Product name from filename (English)
+olive-oil.webp          → product "Olive Oil"
+
+# Product name from filename (Hebrew — kept as-is)
+שמן זית.webp            → product "שמן זית"
+
+# With category prefix (separated by --)
+dairy--whole-milk.jpg   → product "Whole Milk" in category "Dairy"
+```
+
+Products created by this script are **global** (`userId = null`) — visible to all families.
+
+---
+
+## Completed Work
+- [x] Monorepo with separate backend/frontend packages
+- [x] Supabase PostgreSQL integration
+- [x] Full CRUD: categories, products, shopping lists, list items
+- [x] Shopping sessions (start from a list, track purchases)
+- [x] Receipt upload (image + PDF) with GPT-4o analysis
+- [x] Auto-mark purchased items + price from receipt
+- [x] Store name + total displayed on session cards
+- [x] Product average price from purchase history
+- [x] Product image upload (Supabase Storage)
+- [x] Authentication via Supabase Auth (email + password)
+- [x] Invite-code gating — only invited users can sign up
+- [x] Per-user/family data isolation (lists, sessions, products)
+- [x] Family system (create, join via invite code, leave)
+- [x] Global product catalog (admin-only, visible to all)
+- [x] Hide global products per-family instead of deleting
+- [x] Default product catalog seeded on first backend start
+- [x] Seed script for bulk product import with images
+
+## Outstanding Work
+- [ ] Real-time sync between family members (WebSocket or Supabase Realtime)
+- [ ] Push notifications for list changes
+- [ ] Production migrations (replace TypeORM `synchronize` with migration files)
+- [ ] Unit / integration tests
+- [x] Deploy backend to Render, frontend to Vercel
+- [x] Keep-alive ping via macOS launchd (every 13 min) to prevent Render free-tier spin-down
