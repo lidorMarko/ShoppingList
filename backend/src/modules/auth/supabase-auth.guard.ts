@@ -42,7 +42,7 @@ export class SupabaseAuthGuard implements CanActivate {
       if (key === 'categoryId' && req.body?.[key] === null) continue;
       if (req.body?.[key] !== undefined) requireId(req.body[key]);
     }
-    await this.policy.authorize(controller, handler, req, user);
+    await this.policy.authorize(controller, handler, req, user, true);
     req.user = user;
     return true;
   }

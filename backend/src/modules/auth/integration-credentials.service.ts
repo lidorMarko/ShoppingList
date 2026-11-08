@@ -38,7 +38,9 @@ export class IntegrationCredentialsService {
   }
   async create(userId: string, body: any) {
     this.enabled();
-    if (body?.application !== 'eden' || body?.consent !== true || !Array.isArray(body.scopes) || body.scopes.length !== 1 || body.scopes[0] !== 'shopping:read' || (body.expiresInDays !== undefined && (!Number.isInteger(body.expiresInDays) || body.expiresInDays < 1 || body.expiresInDays > 90)) || Object.keys(body).some(k => !['application', 'consent', 'scopes', 'expiresInDays', 'rotateCredentialId'].includes(k))) throw new BadRequestException('Explicit Eden read-only consent and a valid expiry are required');
+    const scopes = body?.scopes;
+    const validScopes = Array.isArray(scopes) && (JSON.stringify(scopes) === '["shopping:read"]' || JSON.stringify(scopes) === '["shopping:read","shopping:write"]');
+    if (body?.application !== 'eden' || body?.consent !== true || !validScopes || (body.expiresInDays !== undefined && (!Number.isInteger(body.expiresInDays) || body.expiresInDays < 1 || body.expiresInDays > 90)) || Object.keys(body).some(k => !['application', 'consent', 'scopes', 'expiresInDays', 'rotateCredentialId'].includes(k))) throw new BadRequestException('Explicit Eden scope consent and a valid expiry are required');
     const id = randomUUID();
     const token = `eden_${id}_${randomBytes(32).toString('base64url')}`;
     const expiresAt = new Date(Date.now() + (body.expiresInDays ?? 30) * 86400000);
@@ -50,10 +52,10 @@ export class IntegrationCredentialsService {
         if (!old || old.revokedAt) throw new NotFoundException();
         await manager.getRepository(IntegrationCredential).update({ id: old.id, userId }, { revokedAt: new Date() });
       }
-      await manager.getRepository(IntegrationCredential).insert({ id, userId, tokenHash: createHash('sha256').update(token).digest('hex'), scopes: ['shopping:read'], expiresAt });
+      await manager.getRepository(IntegrationCredential).insert({ id, userId, tokenHash: createHash('sha256').update(token).digest('hex'), scopes, expiresAt });
     });
     // Returned once to the authenticated setup UI, never persisted in plaintext.
-    return { id, token, scopes: ['shopping:read'], expiresAt };
+    return { id, token, scopes, expiresAt };
   }
   async revoke(id: string, userId: string) {
     this.enabled();

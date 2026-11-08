@@ -21,7 +21,7 @@ function pdfFixture() {
 }
 const pdf=pdfFixture();
 const token=[{alg:'HS256',typ:'JWT'},{sub:A,aud:'authenticated',exp:Math.floor(Date.now()/1000)+3600},'synthetic-signature'].map(v=>typeof v==='string'?v:Buffer.from(JSON.stringify(v)).toString('base64url')).join('.');
-let server,browser,page,context,base,requests,receiptType,products;
+let server,browser,page,context,base,requests,receiptType,products,grants,createdScopes;
 function product(){return {id:P,userId:A,name:'חלב',imageUrl:`https://mock-project.example.test/storage/v1/object/public/product-images-private/${A}/${id(80)}.png`,createdAt:'2026-01-01',updatedAt:'2026-01-01'};}
 function session(){return {id:S,shoppingListId:id(10),shoppingList:{id:id(10),name:'רשימת הבית'},status:'active',startedAt:'2026-01-01',items:[{id:id(50),sessionId:S,productId:P,product:product(),isPurchased:false}],receiptUrl:`/api/sessions/${S}/receipt/file`};}
 before(async()=>{
@@ -39,6 +39,11 @@ before(async()=>{
    else if(url.pathname==='/api/products/me/is-admin')payload={isAdmin:false};
    else if(url.pathname==='/api/products' && req.method==='GET')payload=products;
    else if(url.pathname==='/api/categories')payload=[];
+   else if(url.pathname==='/api/integrations/eden/credentials' && req.method==='GET')payload=grants;
+   else if(url.pathname==='/api/integrations/eden/credentials' && req.method==='POST'){
+    let text='';await new Promise(resolve=>{req.on('data',chunk=>text+=chunk);req.on('end',resolve);});const body=JSON.parse(text);createdScopes.push(body.scopes);
+    const grant={id:id(100+grants.length),scopes:body.scopes,expiresAt:new Date(Date.now()+86400000).toISOString(),revokedAt:null};grants.push(grant);payload={...grant,token:'synthetic-browser-fixture-not-a-usable-credential'};
+   }
    else if(url.pathname==='/api/uploads/product-image' && req.method==='POST')payload={url:product().imageUrl};
    else if(url.pathname===`/api/products/${P}` && req.method==='PUT'){await new Promise(resolve=>{req.resume();req.on('end',resolve);});payload=product();}
    else if(url.pathname===`/api/sessions/${S}/receipt` && req.method==='POST'){await new Promise(resolve=>{req.resume();req.on('end',resolve);});receiptType='application/pdf';payload=session();}
@@ -55,7 +60,7 @@ before(async()=>{
  browser=await chromium.launch({headless:true});
 });
 beforeEach(async()=>{
- requests=[];receiptType='image/png';products=[product()];
+ requests=[];receiptType='image/png';products=[product()];createdScopes=[];grants=[{id:id(90),scopes:['shopping:read'],expiresAt:new Date(Date.now()+86400000).toISOString(),revokedAt:null}];
  context=await browser.newContext();
  await context.route('**/*',route=>{
   const url=route.request().url();if(url.startsWith(base+'/') || url.startsWith('blob:') || url.startsWith('data:'))return route.continue();
@@ -100,5 +105,16 @@ test('receipt image lightbox and replacement with PDF continue through authentic
  assert.equal(opened.type,'application/pdf');assert.equal(opened.prefix,'%PDF-1.4');
  assert.ok(requests.some(r=>r.path===`/api/sessions/${S}/receipt` && r.method==='POST'));
  assert.ok(requests.filter(r=>r.path.includes('/receipt')).every(r=>r.authorization===`Bearer ${token}`));
+ await context.close();
+});
+
+test('write consent is opt-in and existing read-only grants remain unchanged',async()=>{
+ await page.goto(base+'/integrations/eden');await page.getByRole('heading',{name:'Connect Eden'}).waitFor();
+ const writes=page.getByRole('checkbox',{name:'Also authorize shopping list and item changes'});assert.equal(await writes.isChecked(),false);
+ await page.getByRole('button',{name:'Authorize Eden read access',exact:true}).click();await page.getByLabel('One-time Eden credential').waitFor();assert.deepEqual(createdScopes[0],['shopping:read']);
+ await writes.check();await page.getByRole('button',{name:'Authorize Eden read and write access',exact:true}).click();
+ await page.waitForFunction(()=>document.querySelector('button') && !Array.from(document.querySelectorAll('button')).some(b=>b.textContent==='Authorize Eden read and write access' && b.disabled));
+ assert.deepEqual(createdScopes[1],['shopping:read','shopping:write']);assert.deepEqual(grants[0].scopes,['shopping:read']);
+ await page.reload();await page.getByRole('heading',{name:'Connect Eden'}).waitFor();assert.equal(await page.getByRole('checkbox',{name:'Also authorize shopping list and item changes'}).isChecked(),false);
  await context.close();
 });

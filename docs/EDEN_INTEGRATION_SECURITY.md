@@ -1,6 +1,6 @@
-# Eden integration — Phase A
+# Eden integration — security and existing-account credentials
 
-Status: implemented locally; not committed, deployed, connected, or production-verified. Integration is disabled by default. No shopping mutation tools, batch/idempotency API, or database synchronization is implemented.
+Status: Phase A is committed locally; Phase B reliable API mutations are implemented and validated locally. Integration remains disabled, unconnected and not deployed. See [Phase B contract and validation](PHASE_B.md). No shopping tools or database synchronization are implemented.
 
 ## Authentication and route policies
 
@@ -18,7 +18,7 @@ The signed-in web account can open /integrations/eden. Nothing is granted automa
 
 A token has a random UUID identifier and 256-bit random secret. ShoppingList persists only its SHA-256 verifier. High-entropy random credentials do not require password hashing. Verification uses fixed-length timing-safe digest comparison and checks expiry, revocation, existing profile, and current Supabase Auth account status. Queries check auth.users.deleted_at/banned_until using the existing server DB connection, without a Supabase service-role API key. This requires the application DB role to have SELECT access to those three Auth columns; missing permission fails closed. Account disable/delete invalidates credentials even if a profile remains.
 
-Only shopping:read is issuable in Phase A. Integration credentials can read lists, list items, visible products and categories; all writes, account/family management, sessions, receipts, uploads, image downloads and credential management are denied. This limits exposure until later phases are approved.
+Phase A issued shopping:read only. Phase B preserves those grants and adds explicitly consented read+write access only to reliable list/item mutation and operation recovery routes. Default consent remains read-only. Account/family/catalog/media/credential administration and integration toggles remain denied. See PHASE_B.md for the current scope and replay contract.
 
 Expiry defaults to 30 days and is bounded to 1–90 days. DELETE /api/integrations/eden/credentials/:id revokes only the current web account's credential. POST with rotateCredentialId atomically replaces and revokes that account's old credential. Revocation/expiry is checked on every new request; already-running reads are not cancelled. List/status responses omit verifier hashes and tokens.
 
@@ -52,7 +52,7 @@ Run backend/frontend TypeScript checks/builds and git diff --check. No lint comm
 
 No deployed schema, Supabase project configuration, RLS/storage policies, database-role grants or real account access were inspected. Local migration, Auth lifecycle privilege and media regression tests passed. Deployed private-storage/account-lifecycle smoke tests remain mandatory before exposure. Authorization is enforced at the HTTP boundary; internal service callers must continue to use AccessPolicy. There is no new RLS layer. Membership checks are per request, not serializable with concurrent family changes; in-flight authorized requests are not retroactively revoked. Rate limiting, credential/session expiry UX and security telemetry should be reviewed before public exposure. SHA verifier compromise alone does not reveal tokens; full application-host compromise remains outside encryption protection.
 
-Phase B (idempotency/atomic batches), C (Eden reads), D (confirmed mutations), and E (destructive confirmations) remain unimplemented. Eden must continue using deterministic out-of-band pending-action confirmation for future writes; the model must never receive credentials or trusted identity claims.
+Phase B idempotency/atomic batches are locally implemented and validated. Phases C (Eden reads), D (confirmed mutations), and E (destructive confirmations) remain unimplemented. Eden must continue using deterministic out-of-band pending-action confirmation for future writes; the model must never receive credentials or trusted identity claims.
 
 ## Results for this implementation
 

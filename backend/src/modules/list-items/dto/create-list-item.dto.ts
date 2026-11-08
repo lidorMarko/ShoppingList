@@ -6,6 +6,9 @@ import {
   IsNumber,
   IsBoolean,
   Min,
+  Max,
+  MaxLength,
+  MinLength,
 } from 'class-validator';
 
 export class CreateListItemDto {
@@ -13,17 +16,21 @@ export class CreateListItemDto {
   @IsNotEmpty()
   productId: string;
 
-  @IsNumber()
+  @IsNumber({ maxDecimalPlaces: 2, allowInfinity: false, allowNaN: false })
   @IsOptional()
+  @Max(99999999.99)
   @Min(0)
   quantity?: number;
 
   @IsString()
   @IsOptional()
+  @MinLength(1)
+  @MaxLength(32)
   unit?: string;
 
   @IsString()
   @IsOptional()
+  @MaxLength(2000)
   notes?: string;
 
   @IsBoolean()

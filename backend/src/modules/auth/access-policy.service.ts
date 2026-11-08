@@ -1,6 +1,7 @@
+import { RELIABLE_ROUTES } from '../operations/operation-types';
 import { UploadsService } from '../uploads/uploads.service';
 import { Injectable, ForbiddenException, NotFoundException } from '@nestjs/common';
-import { DataSource, In, IsNull } from 'typeorm';
+import { DataSource, EntityManager, In, IsNull } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { Profile } from '../../database/entities/profile.entity';
 import { ShoppingList } from '../../database/entities/shopping-list.entity';
@@ -15,6 +16,10 @@ export interface Principal { id: string; email: string; kind: 'web' | 'integrati
 @Injectable()
 export class AccessPolicy {
   constructor(private readonly db: DataSource, private readonly config: ConfigService, private readonly uploads: UploadsService) {}
+
+  withManager(manager: EntityManager): AccessPolicy {
+    return new AccessPolicy(manager as unknown as DataSource, this.config, this.uploads);
+  }
 
   async visibleUserIds(userId: string): Promise<string[]> {
     const profile = await this.db.getRepository(Profile).findOneBy({ id: userId });
@@ -66,11 +71,12 @@ export class AccessPolicy {
   }
 
   // A closed route manifest: new handlers are denied until their policy is reviewed.
-  async authorize(controller: string, handler: string, req: any, user: Principal) {
+  async authorize(controller: string, handler: string, req: any, user: Principal, guardPhase = false) {
     const routes: Record<string, string[]> = {
+      OperationsController: ['findOne', 'findByKey'],
       AuthController: ['me'], FamiliesController: ['create', 'join', 'leave'],
       ListsController: ['findAll', 'findOne', 'create', 'update', 'remove', 'copyItems'],
-      ListItemsController: ['findAll', 'create', 'update', 'toggle', 'remove'],
+      ListItemsController: ['findAll', 'create', 'update', 'toggle', 'remove', 'batch', 'setPurchased'],
       ProductsController: ['findAll', 'findOne', 'image', 'isAdmin', 'create', 'update', 'remove'],
       CategoriesController: ['findAll', 'findOne', 'create', 'update', 'remove'],
       UploadsController: ['uploadProductImage', 'downloadPreview'],
@@ -83,10 +89,16 @@ export class AccessPolicy {
         ListsController: ['findAll', 'findOne'], ListItemsController: ['findAll'],
         ProductsController: ['findAll', 'findOne'], CategoriesController: ['findAll', 'findOne'],
       };
-      if (req.method !== 'GET' || !reads[controller]?.includes(handler) || !user.scopes.includes('shopping:read')) throw new ForbiddenException();
+      const mutation = RELIABLE_ROUTES[`${controller}.${handler}`];
+      if (mutation || controller === 'OperationsController') {
+        if (!user.scopes.includes('shopping:write') || mutation === 'item.toggle') throw new ForbiddenException();
+      } else if (req.method !== 'GET' || !reads[controller]?.includes(handler) || !user.scopes.includes('shopping:read')) throw new ForbiddenException();
     }
     if (controller === 'AuthController') return;
     await this.visibleUserIds(user.id);
+    // Keyed mutations may replay a deleted target; the transaction service authorizes
+    // current resources or its own deletion receipt before executing/returning anything.
+    if (guardPhase && typeof req.headers?.['idempotency-key'] === 'string' && RELIABLE_ROUTES[`${controller}.${handler}`]) return;
     const p = req.params || {}, body = req.body || {};
     if (controller === 'ListsController') {
       if (p.id) await this.list(p.id, user.id);

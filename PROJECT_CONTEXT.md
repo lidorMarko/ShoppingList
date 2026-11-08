@@ -1,7 +1,7 @@
 # Shopping List App — Project Context
 
 ## Current Status
-Phase A security is implemented locally, not deployed or connected. Read [the security and migration runbook](docs/EDEN_INTEGRATION_SECURITY.md) before enabling the integration.
+Phase A security is committed locally. Phase B reliable mutations are implemented and validated locally; neither phase is deployed or connected. See [Phase B](docs/PHASE_B.md). Read [the security and migration runbook](docs/EDEN_INTEGRATION_SECURITY.md) before enabling the integration.
 
 Full-featured family shopping app with authentication, family grouping, receipt OCR (GPT-4o), product image support, and per-user/family data isolation.
 

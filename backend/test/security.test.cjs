@@ -7,6 +7,8 @@ const { Module, ValidationPipe } = require('@nestjs/common');
 const { APP_GUARD, APP_INTERCEPTOR, NestFactory } = require('@nestjs/core');
 const { ConfigService } = require('@nestjs/config');
 const { DataSource } = require('typeorm');
+const { ReliableShoppingService } = require('../src/modules/operations/reliable-shopping.service');
+const { OperationsController } = require('../src/modules/operations/operations.controller');
 const { AccessPolicy } = require('../src/modules/auth/access-policy.service');
 const { SupabaseAuthGuard } = require('../src/modules/auth/supabase-auth.guard');
 const { PrivacyInterceptor } = require('../src/modules/auth/privacy.interceptor');
@@ -83,7 +85,8 @@ for (const [dir,name] of [['lists','Lists'],['list-items','ListItems'],['product
  const mock=new Proxy({}, {get:(_,handler)=>handler==='isAdmin' ? email=>email==='admin@example.test' : ['then','onModuleInit','onApplicationBootstrap','onModuleDestroy','onApplicationShutdown','beforeApplicationShutdown'].includes(handler) ? undefined : async(...args)=>{calls.push({name,handler,args});if(handler==='isAdmin') return args[0]==='admin@example.test'; if(handler==='downloadReceipt')return {buffer:Buffer.from('receipt'),contentType:'image/png',filename:'receipt.png'};if(handler==='findOne' && name==='Products')return {id:args[0],imageUrl:'image:test'};return {ok:true};}});
  providers.push({provide:Service,useValue:mock});
 }
-controllers.push(require('../src/modules/auth/integration-credentials.controller').IntegrationCredentialsController);
+controllers.push(require('../src/modules/auth/integration-credentials.controller').IntegrationCredentialsController,OperationsController);
+providers.push({provide:ReliableShoppingService,useValue:{respond:async(response,user,operation)=>{response.status(operation.endsWith('delete')?204:operation.endsWith('create')||operation.endsWith('copy')||operation.endsWith('batch')?201:200);return {ok:true};},lookup:async()=>({ok:true})}});
 before(async()=>{
  authServer=createServer((req,res)=>{
    const who={owner:A,member:B,other:C,admin:A,unverifiedAdmin:A}[req.headers.authorization?.slice(7)];

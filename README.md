@@ -149,3 +149,5 @@ Base URL: `http://localhost:3001/api`
 | POST | /sessions/:id/analyze-receipt | Run GPT-4o analysis |
 
 Final Phase A local validation and deployment gates: [validation report](docs/PHASE_A_VALIDATION.md).
+
+Phase B reliable mutation API, duplicate rules, recovery and rollback: [Phase B report](docs/PHASE_B.md). Integration remains disabled; no Eden tools are connected.

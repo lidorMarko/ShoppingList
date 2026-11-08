@@ -1,3 +1,6 @@
+import { ReliableShoppingService } from '../operations/reliable-shopping.service';
+import { AtomicBatchService } from '../operations/atomic-batch.service';
+import { OperationsController } from '../operations/operations.controller';
 import { UploadsModule } from '../uploads/uploads.module';
 import { Global, Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -20,8 +23,8 @@ import { IntegrationCredentialsController } from './integration-credentials.cont
     UploadsModule,
     TypeOrmModule.forFeature([Profile]),
   ],
-  providers: [AccessPolicy, IntegrationCredentialsService, AuthService, ConfigService, { provide: APP_GUARD, useClass: SupabaseAuthGuard }, { provide: APP_INTERCEPTOR, useClass: PrivacyInterceptor }],
-  controllers: [AuthController, IntegrationCredentialsController],
-  exports: [AuthService, AccessPolicy],
+  providers: [ReliableShoppingService, AtomicBatchService, AccessPolicy, IntegrationCredentialsService, AuthService, ConfigService, { provide: APP_GUARD, useClass: SupabaseAuthGuard }, { provide: APP_INTERCEPTOR, useClass: PrivacyInterceptor }],
+  controllers: [OperationsController, AuthController, IntegrationCredentialsController],
+  exports: [AuthService, AccessPolicy, ReliableShoppingService],
 })
 export class AuthModule {}

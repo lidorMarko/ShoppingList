@@ -8,4 +8,5 @@ import { Profile } from './entities/profile.entity';
 import { Family } from './entities/family.entity';
 import { HiddenProduct } from './entities/hidden-product.entity';
 import { IntegrationCredential } from './entities/integration-credential.entity';
-export const entities = [Category, Product, ShoppingList, ListItem, ShoppingSession, SessionItem, Profile, Family, HiddenProduct, IntegrationCredential];
+import { ShoppingOperationRecord } from './entities/shopping-operation.entity';
+export const entities = [Category, Product, ShoppingList, ListItem, ShoppingSession, SessionItem, Profile, Family, HiddenProduct, IntegrationCredential, ShoppingOperationRecord];
