@@ -1,6 +1,6 @@
 # Eden integration — security and existing-account credentials
 
-Status: Phase A is committed locally; Phase B reliable API mutations are implemented and validated locally. Integration remains disabled, unconnected and not deployed. See [Phase B contract and validation](PHASE_B.md). No shopping tools or database synchronization are implemented.
+Status: Phases A and B are committed locally. Phase C (credential self-inspection/self-revocation here, plus read-only Eden connection and tools in the Eden repository) is implemented and validated locally, not committed. Integration remains disabled by default, no real account is connected, and nothing is deployed. See [Phase B](PHASE_B.md) and [Phase C](PHASE_C.md). No database synchronization exists, and Eden has no write tools.
 
 ## Authentication and route policies
 
@@ -22,7 +22,7 @@ Phase A issued shopping:read only. Phase B preserves those grants and adds expli
 
 Expiry defaults to 30 days and is bounded to 1–90 days. DELETE /api/integrations/eden/credentials/:id revokes only the current web account's credential. POST with rotateCredentialId atomically replaces and revokes that account's old credential. Revocation/expiry is checked on every new request; already-running reads are not cancelled. List/status responses omit verifier hashes and tokens.
 
-Transfer is manual and host-only; this phase adds no automatic browser-to-Eden callback or connected shopping adapter. Never paste a token in chat or command arguments. Eden has a standalone AES-256-GCM envelope helper bound to owner, ShoppingList user, credential, API origin, expiry and key version. Host provisioning/persistence and actual API access remain unconnected; no token has been provisioned. A future host setup must use masked input and a dedicated key separate from PIN/Google secrets. Do not enable access merely because consent UI exists.
+Transfer is manual and host-only; this phase adds no automatic browser-to-Eden callback or connected shopping adapter. Never paste a token in chat or command arguments. Eden has a standalone AES-256-GCM envelope helper bound to owner, ShoppingList user, credential, API origin, expiry and key version. Phase C adds Eden's host provisioning (`npm run shopping:connect`, masked input, dedicated key separate from PIN/Google secrets), which verifies the credential through `GET /api/integrations/eden/self` and accepts read-only grants only. No real token has been provisioned. Do not enable access merely because consent UI exists.
 
 ## Private images and receipts
 
@@ -52,7 +52,7 @@ Run backend/frontend TypeScript checks/builds and git diff --check. No lint comm
 
 No deployed schema, Supabase project configuration, RLS/storage policies, database-role grants or real account access were inspected. Local migration, Auth lifecycle privilege and media regression tests passed. Deployed private-storage/account-lifecycle smoke tests remain mandatory before exposure. Authorization is enforced at the HTTP boundary; internal service callers must continue to use AccessPolicy. There is no new RLS layer. Membership checks are per request, not serializable with concurrent family changes; in-flight authorized requests are not retroactively revoked. Rate limiting, credential/session expiry UX and security telemetry should be reviewed before public exposure. SHA verifier compromise alone does not reveal tokens; full application-host compromise remains outside encryption protection.
 
-Phase B idempotency/atomic batches are locally implemented and validated. Phases C (Eden reads), D (confirmed mutations), and E (destructive confirmations) remain unimplemented. Eden must continue using deterministic out-of-band pending-action confirmation for future writes; the model must never receive credentials or trusted identity claims.
+Phase B idempotency/atomic batches are locally implemented and validated. Phase C (Eden reads) is implemented locally; Phases D (confirmed mutations) and E (destructive confirmations) remain unimplemented. Eden must continue using deterministic out-of-band pending-action confirmation for future writes; the model must never receive credentials or trusted identity claims.
 
 ## Results for this implementation
 

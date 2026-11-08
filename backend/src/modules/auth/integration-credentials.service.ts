@@ -1,6 +1,6 @@
-import { Injectable, BadRequestException, UnauthorizedException, NotFoundException } from '@nestjs/common';
+import { Injectable, BadRequestException, UnauthorizedException, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DataSource } from 'typeorm';
+import { DataSource, IsNull } from 'typeorm';
 import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'crypto';
 import { IntegrationCredential } from '../../database/entities/integration-credential.entity';
 import { Profile } from '../../database/entities/profile.entity';
@@ -56,6 +56,23 @@ export class IntegrationCredentialsService {
     });
     // Returned once to the authenticated setup UI, never persisted in plaintext.
     return { id, token, scopes, expiresAt };
+  }
+  /** Non-secret metadata for the presenting credential only: lets a host bind its stored
+   * credential to the verified account, scope and expiry instead of operator-typed claims. */
+  async inspectSelf(principal: Principal) {
+    this.enabled();
+    if (principal.kind !== 'integration' || !principal.credentialId) throw new ForbiddenException();
+    const row = await this.db.getRepository(IntegrationCredential).findOne({ where: { id: principal.credentialId, userId: principal.id }, select: ['id', 'userId', 'scopes', 'expiresAt', 'revokedAt'] });
+    if (!row || row.revokedAt || row.expiresAt.getTime() <= Date.now()) throw new UnauthorizedException();
+    return { credentialId: row.id, userId: row.userId, scopes: row.scopes, expiresAt: row.expiresAt };
+  }
+  /** Revokes the presenting credential. It cannot name or affect any other credential. */
+  async revokeSelf(principal: Principal) {
+    this.enabled();
+    if (principal.kind !== 'integration' || !principal.credentialId) throw new ForbiddenException();
+    const result = await this.db.getRepository(IntegrationCredential).update({ id: principal.credentialId, userId: principal.id, revokedAt: IsNull() }, { revokedAt: new Date() });
+    if (!result.affected) throw new UnauthorizedException();
+    return { revoked: true };
   }
   async revoke(id: string, userId: string) {
     this.enabled();

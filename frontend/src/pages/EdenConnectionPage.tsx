@@ -28,12 +28,12 @@ export default function EdenConnectionPage() {
     finally { setBusy(false); }
   }
   return <div><h1>Connect Eden</h1>
-    <p>Account: {user?.email}. Authorize Eden to read your existing shopping lists and visible products, including lists shared by your current household. It cannot manage your account. Optional write access permits creating, editing and deleting lists and items, and setting purchase state, within your current permissions. Telegram actions remain unconnected.</p>
+    <p>Account: {user?.email}. Authorize Eden to read your existing shopping lists and visible products, including lists shared by your current household. It cannot manage your account. Optional write access permits creating, editing and deleting lists and items, and setting purchase state, within your current permissions. Eden currently connects read-only credentials only and cannot change your lists.</p>
     <p>Authorization expires in 30 days. You can revoke it here at any time.</p>
     <label><input type="checkbox" checked={allowWrites} disabled={busy} onChange={event => setAllowWrites(event.target.checked)} /> Also authorize shopping list and item changes</label>
     {isError ? <p>Connections are unavailable. No authorization has been granted.</p> : <button disabled={busy} onClick={() => authorize()}>{allowWrites ? 'Authorize Eden read and write access' : 'Authorize Eden read access'}</button>}
     {error && <p role="alert">{error}</p>}
-    {token && token.ownerId === user?.id && <section><p>Shown once. Transfer this credential only to Eden’s secure host setup. Do not send it in chat. Eden tools are not connected in this phase.</p><textarea aria-label="One-time Eden credential" readOnly value={token.value} autoComplete="off" spellCheck={false} /><button onClick={() => setToken(null)}>Hide credential</button></section>}
+    {token && token.ownerId === user?.id && <section><p>Shown once. Transfer this credential only to Eden’s secure host setup (npm run shopping:connect, which reads it from hidden terminal input). Do not send it in chat or Telegram.</p><textarea aria-label="One-time Eden credential" readOnly value={token.value} autoComplete="off" spellCheck={false} /><button onClick={() => setToken(null)}>Hide credential</button></section>}
     <ul>{credentials.map(c => <li key={c.id}>{c.scopes.includes('shopping:write') ? 'Read and write access' : 'Read access'} · expires {new Date(c.expiresAt).toLocaleDateString()} · {c.revokedAt ? 'Revoked' : new Date(c.expiresAt) <= new Date() ? 'Expired' : 'Active'} {!c.revokedAt && <><button disabled={busy} onClick={() => revoke(c.id)}>Revoke</button><button disabled={busy} onClick={() => authorize(c.id)}>Replace and revoke old credential</button></>}</li>)}</ul>
   </div>;
 }

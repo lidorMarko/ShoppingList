@@ -15,6 +15,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { AccessPolicy } from './access-policy.service';
 import { IntegrationCredentialsService } from './integration-credentials.service';
 import { IntegrationCredentialsController } from './integration-credentials.controller';
+import { IntegrationSelfController } from './integration-self.controller';
 
 @Global()
 @Module({
@@ -24,7 +25,7 @@ import { IntegrationCredentialsController } from './integration-credentials.cont
     TypeOrmModule.forFeature([Profile]),
   ],
   providers: [ReliableShoppingService, AtomicBatchService, AccessPolicy, IntegrationCredentialsService, AuthService, ConfigService, { provide: APP_GUARD, useClass: SupabaseAuthGuard }, { provide: APP_INTERCEPTOR, useClass: PrivacyInterceptor }],
-  controllers: [OperationsController, AuthController, IntegrationCredentialsController],
+  controllers: [OperationsController, AuthController, IntegrationCredentialsController, IntegrationSelfController],
   exports: [AuthService, AccessPolicy, ReliableShoppingService],
 })
 export class AuthModule {}

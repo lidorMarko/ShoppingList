@@ -85,7 +85,7 @@ for (const [dir,name] of [['lists','Lists'],['list-items','ListItems'],['product
  const mock=new Proxy({}, {get:(_,handler)=>handler==='isAdmin' ? email=>email==='admin@example.test' : ['then','onModuleInit','onApplicationBootstrap','onModuleDestroy','onApplicationShutdown','beforeApplicationShutdown'].includes(handler) ? undefined : async(...args)=>{calls.push({name,handler,args});if(handler==='isAdmin') return args[0]==='admin@example.test'; if(handler==='downloadReceipt')return {buffer:Buffer.from('receipt'),contentType:'image/png',filename:'receipt.png'};if(handler==='findOne' && name==='Products')return {id:args[0],imageUrl:'image:test'};return {ok:true};}});
  providers.push({provide:Service,useValue:mock});
 }
-controllers.push(require('../src/modules/auth/integration-credentials.controller').IntegrationCredentialsController,OperationsController);
+controllers.push(require('../src/modules/auth/integration-credentials.controller').IntegrationCredentialsController,require('../src/modules/auth/integration-self.controller').IntegrationSelfController,OperationsController);
 providers.push({provide:ReliableShoppingService,useValue:{respond:async(response,user,operation)=>{response.status(operation.endsWith('delete')?204:operation.endsWith('create')||operation.endsWith('copy')||operation.endsWith('batch')?201:200);return {ok:true};},lookup:async()=>({ok:true})}});
 before(async()=>{
  authServer=createServer((req,res)=>{
@@ -193,6 +193,31 @@ test('rotation revokes previous token and returns new token only once',async()=>
  // Real repository select projections exclude verifier hashes and plaintext tokens.
  const service=new IntegrationCredentialsService({getRepository:()=>({find:async opts=>{assert.ok(!opts.select.includes('tokenHash'));return [];}})},config);
  assert.deepEqual(await service.list(A),[]);
+});
+test('a credential can inspect only its own non-secret metadata; web sessions cannot use self routes',async()=>{
+ fixture();const t=token();const otherUser=token({userId:B,scopes:['shopping:read','shopping:write']});
+ const self=await request('/api/integrations/eden/self',t);assert.equal(self.status,200);
+ const row=rows.get(IntegrationCredential)[0];
+ assert.deepEqual(Object.keys(self.body).sort(),['credentialId','expiresAt','scopes','userId']);
+ assert.equal(self.body.credentialId,row.id);assert.equal(self.body.userId,A);assert.deepEqual(self.body.scopes,['shopping:read']);
+ assert.equal(new Date(self.body.expiresAt).getTime(),row.expiresAt.getTime());
+ assert.ok(!JSON.stringify(self.body).includes(row.tokenHash)&&!JSON.stringify(self.body).includes(t.split('_')[2]));
+ const write=await request('/api/integrations/eden/self',otherUser);assert.equal(write.status,200);assert.equal(write.body.userId,B);assert.deepEqual(write.body.scopes,['shopping:read','shopping:write']);
+ for(const method of ['GET','DELETE'])assert.equal((await request('/api/integrations/eden/self','owner',method)).status,403);
+ assert.equal((await request('/api/integrations/eden/self',null)).status,401);
+ // Self routes take no identifier: a body/path cannot target another credential.
+ assert.equal((await request(`/api/integrations/eden/self/${rows.get(IntegrationCredential)[1].id}`,t,'DELETE')).status,404);
+ assert.equal(rows.get(IntegrationCredential)[1].revokedAt,null);
+});
+test('self revocation revokes only the presenting credential and is rejected after expiry/revocation/disable',async()=>{
+ fixture();const t=token();const sibling=token();
+ assert.equal((await request('/api/integrations/eden/self',t,'DELETE')).status,200);
+ assert.ok(rows.get(IntegrationCredential)[0].revokedAt instanceof Date);assert.equal(rows.get(IntegrationCredential)[1].revokedAt,null);
+ for(const method of ['GET','DELETE'])assert.equal((await request('/api/integrations/eden/self',t,method)).status,401);
+ assert.equal((await request('/api/lists',t)).status,401);assert.equal((await request('/api/lists',sibling)).status,200);
+ fixture();assert.equal((await request('/api/integrations/eden/self',token({expiresAt:new Date(0)}))).status,401);
+ fixture();const disabled=token();enabled=false;assert.equal((await request('/api/integrations/eden/self',disabled)).status,404);
+ fixture();const account=token();accountEnabled=false;assert.equal((await request('/api/integrations/eden/self',account,'DELETE')).status,401);assert.equal(rows.get(IntegrationCredential)[0].revokedAt,null);
 });
 test('unreviewed route handlers and malformed resource identifiers fail closed',async()=>{
  fixture();const policy=new AccessPolicy(db,config,uploads);

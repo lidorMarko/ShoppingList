@@ -82,9 +82,14 @@ export class AccessPolicy {
       UploadsController: ['uploadProductImage', 'downloadPreview'],
       SessionsController: ['findAll', 'findOne', 'create', 'complete', 'remove', 'analyzeReceipt', 'uploadReceipt', 'downloadReceipt', 'addItem', 'updateItem', 'toggleItem', 'removeItem'],
       IntegrationCredentialsController: ['list', 'create', 'revoke'],
+      IntegrationSelfController: ['inspect', 'revoke'],
     };
     if (!routes[controller]?.includes(handler)) throw new ForbiddenException();
-    if (user.kind === 'integration') {
+    // Self-inspection/revocation is only meaningful for the presenting integration credential.
+    // It needs no shopping scope: any still-valid credential may describe or revoke itself.
+    if (controller === 'IntegrationSelfController') {
+      if (user.kind !== 'integration' || !user.credentialId) throw new ForbiddenException();
+    } else if (user.kind === 'integration') {
       const reads: Record<string, string[]> = {
         ListsController: ['findAll', 'findOne'], ListItemsController: ['findAll'],
         ProductsController: ['findAll', 'findOne'], CategoriesController: ['findAll', 'findOne'],
