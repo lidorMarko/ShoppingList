@@ -19,8 +19,8 @@ export class ListsController {
     return this.reliable.respond(response, user, 'list.create', {}, body, key);
   }
   @Put(':id')
-  update(@Param('id') listId: string, @Body() body: UpdateListDto, @CurrentUser() user: Principal, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
-    return this.reliable.respond(response, user, 'list.update', { listId }, body, key);
+  update(@Param('id') listId: string, @Body() body: UpdateListDto, @CurrentUser() user: Principal, @Headers('if-match') expectedState: string, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
+    return this.reliable.respond(response, user, 'list.update', { listId }, body, key, expectedState);
   }
   @Delete(':id')
   remove(@Param('id') listId: string, @Body() body: unknown, @CurrentUser() user: Principal, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {

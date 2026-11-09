@@ -151,3 +151,7 @@ Base URL: `http://localhost:3001/api`
 Final Phase A local validation and deployment gates: [validation report](docs/PHASE_A_VALIDATION.md).
 
 Phase B reliable mutation API, duplicate rules, recovery and rollback: [Phase B report](docs/PHASE_B.md). Integration remains disabled; no Eden tools are connected.
+
+## Phase D update (2026-11-09; committed locally, disabled)
+
+Phase C commits were verified without duplicate commits. Confirmed Eden create/add/quantity/unit/purchased/unpurchased/rename operations are now implemented. The server advertises `mutationProtocol: "phase-d-v1"` and enforces optional `If-Match` list fingerprints transactionally; old servers cannot enable Eden writes. Read-only remains the default, and write credentials require fresh explicit host opt-in. [Phase D protocol, validation and remaining gates](docs/PHASE_D.md). No schema migration, deletion/removal tool, deployment or account activation is included.

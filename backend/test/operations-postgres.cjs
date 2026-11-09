@@ -216,3 +216,42 @@ test('DELETE and legacy toggle reject unsupported bodies rather than silently ch
  assert.equal((await api(`/api/lists/${L}`,'DELETE',{name:'ignored'},randomUUID())).status,400);
  assert.equal((await api(`/api/lists/${L}/items/${itemId}/toggle`,'PATCH',{isPurchased:true},randomUUID(),'web-owner')).status,400);
 });
+
+// Phase D: reject stale Telegram approvals inside the same locked transaction as the write.
+async function expectedState() {
+ const {createHash}=require('node:crypto');
+ const current=await api(`/api/lists/${L}`);assert.equal(current.status,200);
+ const list=current.body, text=value=>value?.normalize('NFC').trim()||null;
+ return createHash('sha256').update(JSON.stringify([list.id,text(list.name),list.items.sort((a,b)=>a.id.localeCompare(b.id)).map(i=>[i.id,i.productId,i.quantity==null?null:Number(i.quantity),text(i.unit),text(i.notes),i.isPurchased])])).digest('hex');
+}
+test('Phase D conditional batch rejects changed state atomically without a receipt',async()=>{
+ const expected=await expectedState(),key=randomUUID();
+ await api(`/api/lists/${L}`,'PUT',{name:'שינוי משפחתי'},randomUUID());
+ const stale=await api(batchPath,'POST',input(),key,owner.token,{'if-match':expected});
+ assert.equal(stale.status,409);assert.equal(await count(),0);
+ assert.equal((await api('/api/integration/operations/by-key','GET',undefined,key)).status,404);
+});
+test('Phase D conditional successful mutation replays its receipt even after state changes',async()=>{
+ const expected=await expectedState(),key=randomUUID();
+ const first=await api(batchPath,'POST',input(),key,owner.token,{'if-match':expected});assert.equal(first.status,201);
+ const replay=await api(batchPath,'POST',input(),key,owner.token,{'if-match':expected});assert.equal(replay.status,201);assert.equal(replay.replayed,'true');assert.equal(await quantity(),1);
+ assert.equal((await api(batchPath,'POST',input(),key,owner.token,{'if-match':'a'.repeat(64)})).status,409);
+});
+test('Phase D independent concurrent confirmations based on the same snapshot have one winner',async()=>{
+ const expected=await expectedState();
+ const results=await Promise.all([1,2].map(()=>api(batchPath,'POST',input(),randomUUID(),owner.token,{'if-match':expected})));
+ assert.deepEqual(results.map(r=>r.status).sort(),[201,409]);assert.equal(await quantity(),1);
+});
+test('Phase D rename, quantity and explicit purchase reject stale state and accept fresh state',async()=>{
+ const added=await api(batchPath,'POST',input(),randomUUID());const itemId=added.body.items[0].id;
+ const cases=[['PUT',`/api/lists/${L}`,{name:'סופר שבועי'}],['PUT',`/api/lists/${L}/items/${itemId}`,{quantity:12,unit:'מארז'}],['PATCH',`/api/lists/${L}/items/${itemId}/purchased`,{isPurchased:true}],['PATCH',`/api/lists/${L}/items/${itemId}/purchased`,{isPurchased:false}]];
+ for(const [method,path,body] of cases){
+  assert.equal((await api(path,method,body,randomUUID(),owner.token,{'if-match':'a'.repeat(64)})).status,409);
+  assert.equal((await api(path,method,body,randomUUID(),owner.token,{'if-match':await expectedState()})).status,200);
+ }
+ assert.equal(await quantity(),12);
+});
+test('Phase D invalid precondition is rejected before side effects',async()=>{
+ for(const value of ['invalid','a'.repeat(63),'A'.repeat(64)])assert.equal((await api(batchPath,'POST',input(),randomUUID(),owner.token,{'if-match':value})).status,400);
+ assert.equal(await count(),0);
+});

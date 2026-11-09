@@ -1,7 +1,7 @@
 # Shopping List App — Project Context
 
 ## Current Status
-Phase A security is committed locally. Phase B reliable mutations are implemented and validated locally; neither phase is deployed or connected. See [Phase B](docs/PHASE_B.md). Read [the security and migration runbook](docs/EDEN_INTEGRATION_SECURITY.md) before enabling the integration.
+Phases A–C are committed locally; Phase D confirmed Eden mutations and transactional stale-state protection are implemented and committed locally. The integration remains disabled, not deployed or connected. See [Phase D](docs/PHASE_D.md) and [Phase B](docs/PHASE_B.md). Read [the security and migration runbook](docs/EDEN_INTEGRATION_SECURITY.md) before enabling the integration.
 
 Full-featured family shopping app with authentication, family grouping, receipt OCR (GPT-4o), product image support, and per-user/family data isolation.
 
@@ -88,7 +88,7 @@ families         id, name, inviteCode (6-char, unique), timestamps
 
 ## API Endpoints
 
-All endpoints except `POST /api/auth/validate-invite` require authentication and the shared resource policy. Optional Eden credentials grant read-only shopping access, never account/session/media administration.
+All endpoints except `POST /api/auth/validate-invite` require authentication and the shared resource policy. Optional Eden credentials default to read-only shopping access; fresh explicit write consent permits shopping mutations. Eden requires Telegram confirmation and excludes deletion/removal tools. No credential grants account/session/media administration.
 
 ### Auth
 | Method | Path | Description |

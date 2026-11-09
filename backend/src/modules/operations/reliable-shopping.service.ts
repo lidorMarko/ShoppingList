@@ -29,6 +29,16 @@ const hash = (value: string) => createHash('sha256').update(value).digest('hex')
 
 @Injectable()
 export class ReliableShoppingService {
+  /** Phase D: deterministic precondition checked while holding the parent list write lock. */
+  private async checkState(manager: EntityManager, listId: string, expected: string) {
+    const list = await manager.getRepository(ShoppingList).findOneBy({ id: listId });
+    if (!list) throw new NotFoundException('Resource not found');
+    const items = await manager.getRepository(ListItem).findBy({ shoppingListId: listId });
+    const text = (value: string | null | undefined) => value?.normalize('NFC').trim() || null;
+    const state = [list.id, text(list.name), items.sort((a,b) => a.id.localeCompare(b.id)).map(i => [i.id, i.productId, i.quantity == null ? null : Number(i.quantity), text(i.unit), text(i.notes), i.isPurchased])];
+    if (hash(JSON.stringify(state)) !== expected) throw new ConflictException('Shopping list changed; request a new confirmation');
+  }
+
   constructor(private readonly db: DataSource, private readonly policy: AccessPolicy, private readonly batch: AtomicBatchService) {}
 
   key(value: unknown, required = true): string | undefined {
@@ -120,8 +130,9 @@ export class ReliableShoppingService {
     }
   }
 
-  async execute(user: Principal, operation: ShoppingOperation, params: { listId?: string; itemId?: string }, body: unknown, keyHeader?: unknown): Promise<MutationResult> {
+  async execute(user: Principal, operation: ShoppingOperation, params: { listId?: string; itemId?: string }, body: unknown, keyHeader?: unknown, expectedState?: unknown): Promise<MutationResult> {
     const key = this.key(keyHeader, user.kind === 'integration' || operation === 'item.batch');
+    if (expectedState !== undefined && (typeof expectedState !== 'string' || !/^[a-f0-9]{64}$/.test(expectedState) || !['list.update','item.update','item.batch','item.purchase'].includes(operation))) throw new BadRequestException('Invalid expected list state');
     const input = this.input(operation, body);
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (operation !== 'list.create' && (typeof params.listId !== 'string' || !uuid.test(params.listId))) throw new BadRequestException('List identifier is required');
@@ -129,7 +140,7 @@ export class ReliableShoppingService {
     const route = Object.entries(RELIABLE_ROUTES).find(([, value]) => value === operation);
     if (!route) throw new BadRequestException('Unsupported operation');
     const identifiers = Object.fromEntries(Object.entries(params).map(([k, v]) => [k, v?.toLowerCase()]));
-    const digest = hash(canonicalJson({ operation, params: identifiers, input }));
+    const digest = hash(canonicalJson({ operation, params: identifiers, input, ...(expectedState !== undefined ? { expectedState } : {}) }));
     const keyHash = key ? hash(key) : undefined;
     return this.transaction(async manager => {
       if (keyHash) await manager.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))', [user.id + ':' + keyHash]);
@@ -150,6 +161,7 @@ export class ReliableShoppingService {
       const [controller, handler] = route[0].split('.');
       const request = { method: 'POST', params: controller === 'ListsController' ? { id: identifiers.listId } : identifiers, body: input };
       await scoped.authorize(controller, handler, request, user);
+      if (expectedState !== undefined) await this.checkState(manager, identifiers.listId, expectedState as string);
       const lists = new ListsService(manager.getRepository(ShoppingList), manager.getRepository(ListItem), manager.getRepository(Profile));
       const items = new ListItemsService(manager.getRepository(ListItem));
       let result: any, httpStatus = 200;
@@ -174,8 +186,8 @@ export class ReliableShoppingService {
     });
   }
 
-  async respond(response: any, user: Principal, operation: ShoppingOperation, params: { listId?: string; itemId?: string }, body: unknown, key?: unknown) {
-    const result = await this.execute(user, operation, params, body, key);
+  async respond(response: any, user: Principal, operation: ShoppingOperation, params: { listId?: string; itemId?: string }, body: unknown, key?: unknown, expectedState?: unknown) {
+    const result = await this.execute(user, operation, params, body, key, expectedState);
     response.status(result.httpStatus);
     if (result.operationId) {
       response.setHeader('X-Operation-Id', result.operationId);

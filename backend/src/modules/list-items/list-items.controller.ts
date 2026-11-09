@@ -18,16 +18,16 @@ export class ListItemsController {
     return this.reliable.respond(response, user, 'item.create', { listId }, body, key);
   }
   @Post('batch')
-  batch(@Param('listId') listId: string, @Body() body: BatchItemsDto, @CurrentUser() user: Principal, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
-    return this.reliable.respond(response, user, 'item.batch', { listId }, body, key);
+  batch(@Param('listId') listId: string, @Body() body: BatchItemsDto, @CurrentUser() user: Principal, @Headers('if-match') expectedState: string, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
+    return this.reliable.respond(response, user, 'item.batch', { listId }, body, key, expectedState);
   }
   @Put(':itemId')
-  update(@Param('listId') listId: string, @Param('itemId') itemId: string, @Body() body: UpdateListItemDto, @CurrentUser() user: Principal, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
-    return this.reliable.respond(response, user, 'item.update', { listId, itemId }, body, key);
+  update(@Param('listId') listId: string, @Param('itemId') itemId: string, @Body() body: UpdateListItemDto, @CurrentUser() user: Principal, @Headers('if-match') expectedState: string, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
+    return this.reliable.respond(response, user, 'item.update', { listId, itemId }, body, key, expectedState);
   }
   @Patch(':itemId/purchased')
-  setPurchased(@Param('listId') listId: string, @Param('itemId') itemId: string, @Body() body: SetPurchasedDto, @CurrentUser() user: Principal, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
-    return this.reliable.respond(response, user, 'item.purchase', { listId, itemId }, body, key);
+  setPurchased(@Param('listId') listId: string, @Param('itemId') itemId: string, @Body() body: SetPurchasedDto, @CurrentUser() user: Principal, @Headers('if-match') expectedState: string, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
+    return this.reliable.respond(response, user, 'item.purchase', { listId, itemId }, body, key, expectedState);
   }
   @Patch(':itemId/toggle')
   toggle(@Param('listId') listId: string, @Param('itemId') itemId: string, @Body() body: unknown, @CurrentUser() user: Principal, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {

@@ -107,3 +107,7 @@ See [the final validation report](PHASE_A_VALIDATION.md) for fixes, remaining de
 - `frontend/src/pages/ShoppingModePage.tsx`
 - `frontend/src/types/index.ts`
 - `frontend/test/media-browser.cjs`
+
+## Phase D update (2026-11-09; committed locally, disabled)
+
+Phase C commits were verified without duplicate commits. Confirmed Eden create/add/quantity/unit/purchased/unpurchased/rename operations are now implemented. The server advertises `mutationProtocol: "phase-d-v1"` and enforces optional `If-Match` list fingerprints transactionally; old servers cannot enable Eden writes. Read-only remains the default, and write credentials require fresh explicit host opt-in. [Phase D protocol, validation and remaining gates](PHASE_D.md). No schema migration, deletion/removal tool, deployment or account activation is included.

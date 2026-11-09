@@ -198,10 +198,10 @@ test('a credential can inspect only its own non-secret metadata; web sessions ca
  fixture();const t=token();const otherUser=token({userId:B,scopes:['shopping:read','shopping:write']});
  const self=await request('/api/integrations/eden/self',t);assert.equal(self.status,200);
  const row=rows.get(IntegrationCredential)[0];
- assert.deepEqual(Object.keys(self.body).sort(),['credentialId','expiresAt','scopes','userId']);
- assert.equal(self.body.credentialId,row.id);assert.equal(self.body.userId,A);assert.deepEqual(self.body.scopes,['shopping:read']);
+ assert.deepEqual(Object.keys(self.body).sort(),['credentialId','expiresAt','mutationProtocol','scopes','userId']);
+ assert.equal(self.body.mutationProtocol,'phase-d-v1');assert.equal(self.body.credentialId,row.id);assert.equal(self.body.userId,A);assert.deepEqual(self.body.scopes,['shopping:read']);
  assert.equal(new Date(self.body.expiresAt).getTime(),row.expiresAt.getTime());
- assert.ok(!JSON.stringify(self.body).includes(row.tokenHash)&&!JSON.stringify(self.body).includes(t.split('_')[2]));
+ assert.ok(!JSON.stringify(self.body).includes(row.tokenHash)&&!JSON.stringify(self.body).includes(t.slice(`eden_${row.id}_`.length)));
  const write=await request('/api/integrations/eden/self',otherUser);assert.equal(write.status,200);assert.equal(write.body.userId,B);assert.deepEqual(write.body.scopes,['shopping:read','shopping:write']);
  for(const method of ['GET','DELETE'])assert.equal((await request('/api/integrations/eden/self','owner',method)).status,403);
  assert.equal((await request('/api/integrations/eden/self',null)).status,401);
