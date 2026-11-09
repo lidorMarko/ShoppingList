@@ -23,8 +23,8 @@ export class ListsController {
     return this.reliable.respond(response, user, 'list.update', { listId }, body, key, expectedState);
   }
   @Delete(':id')
-  remove(@Param('id') listId: string, @Body() body: unknown, @CurrentUser() user: Principal, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
-    return this.reliable.respond(response, user, 'list.delete', { listId }, body ?? {}, key);
+  remove(@Param('id') listId: string, @Body() body: unknown, @CurrentUser() user: Principal, @Headers('if-match') expectedState: string, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
+    return this.reliable.respond(response, user, 'list.delete', { listId }, body ?? {}, key, expectedState);
   }
   @Post(':id/copy-items')
   copyItems(@Param('id') listId: string, @Body() body: CopyListDto, @CurrentUser() user: Principal, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {

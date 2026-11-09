@@ -155,3 +155,7 @@ Phase B reliable mutation API, duplicate rules, recovery and rollback: [Phase B 
 ## Phase D update (2026-11-09; committed locally, disabled)
 
 Phase C commits were verified without duplicate commits. Confirmed Eden create/add/quantity/unit/purchased/unpurchased/rename operations are now implemented. The server advertises `mutationProtocol: "phase-d-v1"` and enforces optional `If-Match` list fingerprints transactionally; old servers cannot enable Eden writes. Read-only remains the default, and write credentials require fresh explicit host opt-in. [Phase D protocol, validation and remaining gates](docs/PHASE_D.md). No schema migration, deletion/removal tool, deployment or account activation is included.
+
+## Phase E update (2026-11-09; implemented, validated and committed locally, disabled)
+
+Individual and whole-list deletion support transactional `If-Match` list-state checks and distinct advertised capabilities. Eden requires exact Telegram confirmation for removal, and both fresh durable action-bound PIN verification and the original preview’s button for whole-list deletion. Eden migration 0006 reuses its existing step-up table; PIN routing survives restart outside model/history/log paths. Approval consumption and action execution marking use database transactions. Uncertain external outcomes reconcile through the ledger without resending deletion. No ShoppingList schema migration, new scope, deployment or account activation is included; only local commits were approved. [Phase E architecture, validation and remaining gates](docs/PHASE_E.md).

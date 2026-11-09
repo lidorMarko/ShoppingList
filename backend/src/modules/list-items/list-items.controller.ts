@@ -34,7 +34,7 @@ export class ListItemsController {
     return this.reliable.respond(response, user, 'item.toggle', { listId, itemId }, body ?? {}, key);
   }
   @Delete(':itemId')
-  remove(@Param('listId') listId: string, @Param('itemId') itemId: string, @Body() body: unknown, @CurrentUser() user: Principal, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
-    return this.reliable.respond(response, user, 'item.delete', { listId, itemId }, body ?? {}, key);
+  remove(@Param('listId') listId: string, @Param('itemId') itemId: string, @Body() body: unknown, @CurrentUser() user: Principal, @Headers('if-match') expectedState: string, @Headers('idempotency-key') key: string, @Res({ passthrough: true }) response: any) {
+    return this.reliable.respond(response, user, 'item.delete', { listId, itemId }, body ?? {}, key, expectedState);
   }
 }

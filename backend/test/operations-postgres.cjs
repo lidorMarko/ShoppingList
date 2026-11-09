@@ -255,3 +255,120 @@ test('Phase D invalid precondition is rejected before side effects',async()=>{
  for(const value of ['invalid','a'.repeat(63),'A'.repeat(64)])assert.equal((await api(batchPath,'POST',input(),randomUUID(),owner.token,{'if-match':value})).status,400);
  assert.equal(await count(),0);
 });
+
+// Phase E adds only conditional individual-item removal; Eden whole-list deletion stays blocked.
+test('Phase E conditional item removal returns a durable 204 receipt and replays after deletion',async()=>{
+ const added=await api(batchPath,'POST',input(),randomUUID()),itemId=added.body.items[0].id;
+ const path=`/api/lists/${L}/items/${itemId}`,key=randomUUID(),expected=await expectedState();
+ const deleted=await api(path,'DELETE',undefined,key,owner.token,{'if-match':expected});
+ assert.equal(deleted.status,204);assert.ok(deleted.operationId);assert.equal(await count(),0);
+ const replay=await api(path,'DELETE',undefined,key,owner.token,{'if-match':expected});
+ assert.equal(replay.status,204);assert.equal(replay.replayed,'true');assert.equal(replay.operationId,deleted.operationId);
+ const recovered=await api('/api/integration/operations/by-key','GET',undefined,key);
+ assert.equal(recovered.status,200);assert.equal(recovered.body.operationId,deleted.operationId);
+ assert.equal((await api(`/api/lists/${L}`)).status,200,'parent list remains');
+});
+for(const changed of ['quantity','unit','notes','purchased','list'])test(`Phase E item removal rejects stale ${changed} without deletion or receipt`,async()=>{
+ const added=await api(batchPath,'POST',input(),randomUUID()),itemId=added.body.items[0].id;
+ const expected=await expectedState(),key=randomUUID();
+ if(changed==='list')await api(`/api/lists/${L}`,'PUT',{name:'סופר מעודכן'},randomUUID());
+ else await api(`/api/lists/${L}/items/${itemId}`,'PUT',{[changed==='purchased'?'isPurchased':changed]:({quantity:3,unit:'מארז',notes:'הערה חדשה',purchased:true})[changed]},randomUUID());
+ assert.equal((await api(`/api/lists/${L}/items/${itemId}`,'DELETE',undefined,key,owner.token,{'if-match':expected})).status,409);
+ assert.equal(await count(),1);assert.equal((await api('/api/integration/operations/by-key','GET',undefined,key)).status,404);
+});
+test('Phase E removal preconditions reject competing independent confirmations; a new service recovers committed deletion',async()=>{
+ const added=await api(batchPath,'POST',input(),randomUUID()),itemId=added.body.items[0].id;
+ const expected=await expectedState(),keys=[randomUUID(),randomUUID()],path=`/api/lists/${L}/items/${itemId}`;
+ const results=await Promise.all(keys.map(key=>api(path,'DELETE',undefined,key,owner.token,{'if-match':expected})));
+ assert.equal(results.filter(r=>r.status===204).length,1);assert.equal(await count(),0);
+ const winner=results.findIndex(r=>r.status===204);
+ const fresh=new ReliableShoppingService(db,new AccessPolicy(db,config,{}),new AtomicBatchService());
+ const receipt=await fresh.lookup({kind:'integration',id:A,email:'owner@example.test',emailVerified:true,scopes:['shopping:read','shopping:write'],credentialId:owner.id},undefined,keys[winner]);
+ assert.equal(receipt.status,'succeeded');assert.equal(receipt.httpStatus,204);
+});
+test('Phase E removal denies read-only revoked and household-removed credentials',async()=>{
+ const added=await api(batchPath,'POST',input(),randomUUID()),itemId=added.body.items[0].id,path=`/api/lists/${L}/items/${itemId}`;
+ const expected=await expectedState();
+ assert.equal((await api(path,'DELETE',undefined,randomUUID(),readOnly.token,{'if-match':expected})).status,403);
+ assert.equal((await api(path,'DELETE',undefined,randomUUID(),other.token,{'if-match':expected})).status,404);
+ await db.query('UPDATE profiles SET "familyId"=NULL WHERE id=$1',[B]);
+ assert.equal((await api(path,'DELETE',undefined,randomUUID(),member.token,{'if-match':expected})).status,404);
+ await db.query('UPDATE integration_credentials SET "revokedAt"=now() WHERE id=$1',[owner.id]);
+ assert.equal((await api(path,'DELETE',undefined,randomUUID(),owner.token,{'if-match':expected})).status,401);
+ assert.equal(await count(),1);
+});
+test('Phase E malformed removal preconditions and forged ownership bodies never remove anything',async()=>{
+ const added=await api(batchPath,'POST',input(),randomUUID()),itemId=added.body.items[0].id,path=`/api/lists/${L}/items/${itemId}`;
+ assert.equal((await api(path,'DELETE',undefined,randomUUID(),owner.token,{'if-match':'invalid'})).status,400);
+ assert.equal((await api(path,'DELETE',{userId:A,familyId:id(100)},randomUUID(),owner.token,{'if-match':await expectedState()})).status,400);
+ assert.equal(await count(),1);
+});
+test('Phase E lost removal response is reconciled by ledger without sending another deletion',async()=>{
+ const added=await api(batchPath,'POST',input(),randomUUID()),itemId=added.body.items[0].id;
+ const key=randomUUID(),expected=await expectedState(),path=`/api/lists/${L}/items/${itemId}`;
+ await assert.rejects(api(path,'DELETE',undefined,key,owner.token,{'if-match':expected,'x-test-drop-response':'1'}));
+ assert.equal(await count(),0);
+ const receipt=await api('/api/integration/operations/by-key','GET',undefined,key);
+ assert.equal(receipt.status,200);assert.equal(receipt.body.status,'succeeded');assert.equal(receipt.body.httpStatus,204);
+ assert.equal((await api(`/api/lists/${L}`)).status,200);
+});
+
+// Whole-list deletion is exposed to Eden only after its independent PIN + callback gates.
+test('whole-list conditional deletion commits one receipt and replays after list disappearance',async()=>{
+ const expected=await expectedState(),key=randomUUID(),path=`/api/lists/${L}`;
+ const removed=await api(path,'DELETE',undefined,key,owner.token,{'if-match':expected});
+ assert.equal(removed.status,204);assert.ok(removed.operationId);
+ assert.equal((await api(path)).status,404);
+ assert.equal((await db.query('SELECT count(*) FROM list_items WHERE "shoppingListId"=$1',[L]))[0].count,'0');
+ const replay=await api(path,'DELETE',undefined,key,owner.token,{'if-match':expected});
+ assert.equal(replay.status,204);assert.equal(replay.replayed,'true');assert.equal(replay.operationId,removed.operationId);
+ const receipt=await api('/api/integration/operations/by-key','GET',undefined,key);
+ assert.equal(receipt.status,200);assert.equal(receipt.body.httpStatus,204);
+ assert.equal((await api(path,'DELETE',undefined,key,owner.token,{'if-match':'a'.repeat(64)})).status,409);
+});
+for(const change of ['name','items','quantity','purchased'])test(`whole-list deletion rejects changed ${change} with no receipt`,async()=>{
+ const added=await api(batchPath,'POST',input(),randomUUID()),itemId=added.body.items[0].id;
+ const expected=await expectedState(),key=randomUUID(),path=`/api/lists/${L}`;
+ if(change==='name')await api(path,'PUT',{name:'שם חדש'},randomUUID());
+ if(change==='items')await api(`/api/lists/${L}/items/${itemId}`,'DELETE',undefined,randomUUID());
+ if(change==='quantity')await api(`/api/lists/${L}/items/${itemId}`,'PUT',{quantity:12},randomUUID());
+ if(change==='purchased')await api(`/api/lists/${L}/items/${itemId}/purchased`,'PATCH',{isPurchased:true},randomUUID());
+ assert.equal((await api(path,'DELETE',undefined,key,owner.token,{'if-match':expected})).status,409);
+ assert.equal((await api(path)).status,200);
+ assert.equal((await api('/api/integration/operations/by-key','GET',undefined,key)).status,404);
+});
+test('concurrent callbacks with the same deletion key return the same durable result',async()=>{
+ const expected=await expectedState(),key=randomUUID(),path=`/api/lists/${L}`;
+ const results=await Promise.all(Array.from({length:8},()=>api(path,'DELETE',undefined,key,owner.token,{'if-match':expected})));
+ assert.ok(results.every(r=>r.status===204));assert.equal(new Set(results.map(r=>r.operationId)).size,1);
+ assert.equal(results.filter(r=>r.replayed==='false').length,1);
+});
+test('independent whole-list deletion requests based on one snapshot have one winner',async()=>{
+ const expected=await expectedState(),path=`/api/lists/${L}`;
+ const results=await Promise.all([1,2].map(()=>api(path,'DELETE',undefined,randomUUID(),owner.token,{'if-match':expected})));
+ assert.equal(results.filter(r=>r.status===204).length,1);
+ assert.ok(results.some(r=>r.status===404||r.status===409));
+});
+test('lost whole-list deletion response recovers by ledger through a fresh service without resending',async()=>{
+ const expected=await expectedState(),key=randomUUID();
+ await assert.rejects(api(`/api/lists/${L}`,'DELETE',undefined,key,owner.token,{'if-match':expected,'x-test-drop-response':'1'}));
+ const service=new ReliableShoppingService(db,new AccessPolicy(db,config,{}),new AtomicBatchService());
+ const receipt=await service.lookup({kind:'integration',id:A,email:'owner@example.test',emailVerified:true,scopes:['shopping:read','shopping:write'],credentialId:owner.id},undefined,key);
+ assert.equal(receipt.status,'succeeded');assert.equal(receipt.httpStatus,204);
+});
+test('whole-list deletion revalidates read-only revoked and household permissions',async()=>{
+ const expected=await expectedState(),path=`/api/lists/${L}`;
+ assert.equal((await api(path,'DELETE',undefined,randomUUID(),readOnly.token,{'if-match':expected})).status,403);
+ assert.equal((await api(path,'DELETE',undefined,randomUUID(),other.token,{'if-match':expected})).status,404);
+ await db.query('UPDATE profiles SET "familyId"=NULL WHERE id=$1',[B]);
+ assert.equal((await api(path,'DELETE',undefined,randomUUID(),member.token,{'if-match':expected})).status,404);
+ await db.query('UPDATE integration_credentials SET "revokedAt"=now() WHERE id=$1',[owner.id]);
+ assert.equal((await api(path,'DELETE',undefined,randomUUID(),owner.token,{'if-match':expected})).status,401);
+ assert.equal((await db.query('SELECT id FROM shopping_lists WHERE id=$1',[L])).length,1);
+});
+test('whole-list deletion rejects invalid preconditions and identity claims in bodies',async()=>{
+ const path=`/api/lists/${L}`;
+ assert.equal((await api(path,'DELETE',undefined,randomUUID(),owner.token,{'if-match':'invalid'})).status,400);
+ assert.equal((await api(path,'DELETE',{userId:A,familyId:id(100)},randomUUID(),owner.token,{'if-match':await expectedState()})).status,400);
+ assert.equal((await api(path)).status,200);
+});

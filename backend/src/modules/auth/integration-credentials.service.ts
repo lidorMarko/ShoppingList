@@ -64,7 +64,7 @@ export class IntegrationCredentialsService {
     if (principal.kind !== 'integration' || !principal.credentialId) throw new ForbiddenException();
     const row = await this.db.getRepository(IntegrationCredential).findOne({ where: { id: principal.credentialId, userId: principal.id }, select: ['id', 'userId', 'scopes', 'expiresAt', 'revokedAt'] });
     if (!row || row.revokedAt || row.expiresAt.getTime() <= Date.now()) throw new UnauthorizedException();
-    return { credentialId: row.id, userId: row.userId, scopes: row.scopes, expiresAt: row.expiresAt, mutationProtocol: 'phase-d-v1' };
+    return { credentialId: row.id, userId: row.userId, scopes: row.scopes, expiresAt: row.expiresAt, mutationProtocol: 'phase-d-v1', itemRemovalProtocol: 'phase-e-item-v1', listDeletionProtocol: 'phase-e-list-v1' };
   }
   /** Revokes the presenting credential. It cannot name or affect any other credential. */
   async revokeSelf(principal: Principal) {

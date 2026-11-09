@@ -132,7 +132,7 @@ export class ReliableShoppingService {
 
   async execute(user: Principal, operation: ShoppingOperation, params: { listId?: string; itemId?: string }, body: unknown, keyHeader?: unknown, expectedState?: unknown): Promise<MutationResult> {
     const key = this.key(keyHeader, user.kind === 'integration' || operation === 'item.batch');
-    if (expectedState !== undefined && (typeof expectedState !== 'string' || !/^[a-f0-9]{64}$/.test(expectedState) || !['list.update','item.update','item.batch','item.purchase'].includes(operation))) throw new BadRequestException('Invalid expected list state');
+    if (expectedState !== undefined && (typeof expectedState !== 'string' || !/^[a-f0-9]{64}$/.test(expectedState) || !['list.update','item.update','item.batch','item.purchase','item.delete','list.delete'].includes(operation))) throw new BadRequestException('Invalid expected list state');
     const input = this.input(operation, body);
     const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
     if (operation !== 'list.create' && (typeof params.listId !== 'string' || !uuid.test(params.listId))) throw new BadRequestException('List identifier is required');
