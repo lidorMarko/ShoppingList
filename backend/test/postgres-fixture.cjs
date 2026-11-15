@@ -6,6 +6,7 @@ const {DataSource}=require('typeorm');
 const {entities}=require('../src/database/entities');
 const {EdenSecurity1794096000000}=require('../src/database/migrations/1794096000000-eden-security');
 const {ShoppingOperations1794096001000}=require('../src/database/migrations/1794096001000-shopping-operations');
+const {EdenDataApiLockdown1794096002000}=require('../src/database/migrations/1794096002000-eden-data-api-lockdown');
 const id=n=>`00000000-0000-4000-8000-${String(n).padStart(12,'0')}`;
 const A=id(1),B=id(2),C=id(3),L=id(10),X=id(11),P=id(20),G=id(21),H=id(22),S=id(30),SX=id(31);
 async function freshDatabase() {
@@ -13,7 +14,7 @@ async function freshDatabase() {
  if(!value)throw new Error('An explicitly supplied fresh disposable database is required');
  const url=new URL(value);
  if(!['127.0.0.1','localhost','[::1]'].includes(url.hostname) || !/^\/shoppinglist_eden_test_[a-z0-9_]+$/.test(url.pathname) || url.search || url.hash)throw new Error('Only disposable local test databases are allowed');
- const db=new DataSource({type:'postgres',url:value,ssl:false,logging:false,synchronize:false,migrationsRun:false,entities,migrations:[EdenSecurity1794096000000,ShoppingOperations1794096001000]});
+ const db=new DataSource({type:'postgres',url:value,ssl:false,logging:false,synchronize:false,migrationsRun:false,entities,migrations:[EdenSecurity1794096000000,ShoppingOperations1794096001000,EdenDataApiLockdown1794096002000]});
  await db.initialize();
  const existing=await db.query("SELECT table_name FROM information_schema.tables WHERE table_schema NOT IN ('pg_catalog','information_schema')");
  if(existing.length){await db.destroy();throw new Error('Refusing a populated database');}

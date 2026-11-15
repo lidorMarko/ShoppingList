@@ -14,7 +14,8 @@
     "test": "TS_NODE_PROJECT=tsconfig.json TS_NODE_TRANSPILE_ONLY=true node -r ts-node/register --test test/*.test.cjs",
     "test:migrations": "TS_NODE_PROJECT=tsconfig.json TS_NODE_TRANSPILE_ONLY=true node -r ts-node/register test/migrations.cjs",
     "test:operation-migrations": "TS_NODE_PROJECT=tsconfig.json TS_NODE_TRANSPILE_ONLY=true node -r ts-node/register test/operations-migration.cjs",
-    "test:operations": "TS_NODE_PROJECT=tsconfig.json TS_NODE_TRANSPILE_ONLY=true node -r ts-node/register test/operations-postgres.cjs"
+    "test:operations": "TS_NODE_PROJECT=tsconfig.json TS_NODE_TRANSPILE_ONLY=true node -r ts-node/register test/operations-postgres.cjs",
+    "test:data-api-lockdown": "TS_NODE_PROJECT=tsconfig.json TS_NODE_TRANSPILE_ONLY=true node -r ts-node/register --test test/data-api-lockdown.cjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.105.0",
