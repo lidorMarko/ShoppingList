@@ -65,6 +65,8 @@ ADMIN_EMAIL=you@example.com            # Confirmed Auth email required for catal
 OPENAI_API_KEY=sk-...
 ```
 
+Verified TLS to Supabase needs Supabase's CA certificate (Dashboard → Project Settings → Database → SSL configuration → Download certificate). Node reads it only from the process environment at startup, not from `.env`: start the backend and migration commands with `NODE_EXTRA_CA_CERTS=/path/to/prod-ca-2021.crt`. Without it the connection fails with `SELF_SIGNED_CERT_IN_CHAIN`; never disable verification instead. The migration commands also refuse TLS-weakening `DATABASE_URL` parameters and IP-address hosts, and accept `DATABASE_SSL=false` only for a loopback database. See [PRODUCTION_RELEASE.md](docs/PRODUCTION_RELEASE.md).
+
 ### 3. Configure the frontend
 
 Create `frontend/.env.local`:

@@ -34,7 +34,7 @@ IMPORTANT deployment prerequisite: API code cannot retract objects in existing p
 
 ## Explicit migrations and rollback
 
-Both application and CLI use synchronize=false and a shared complete entity inventory. No catalog writes occur on application startup. The migration CLI does not load checkout .env files; connection settings must be supplied explicitly. TLS verifies certificates by default. DATABASE_SSL=false is only for disposable local development.
+Both application and CLI use synchronize=false and a shared complete entity inventory. No catalog writes occur on application startup. The migration CLI does not load checkout .env files; connection settings must be supplied explicitly. TLS always verifies certificates and host names; Supabase's CA is supplied through NODE_EXTRA_CA_CERTS. DATABASE_SSL=false is accepted only for a loopback database (disposable local development).
 
 1794096000000-eden-security requires an existing application schema. It creates hidden_products only if absent, adds a unique user/product hide index, and adds integration_credentials with owner FK/cascade, token verifier/scopes/expiry constraints and user index. Existing app tables are never recreated. The representative legacy fixture is explicit synthetic DDL/data, not a production export. Duplicate hide rows fail migration transactionally; no data is silently deduplicated. Existing schema/table/index collisions must be inspected against a disposable schema copy before approval to apply.
 
@@ -118,4 +118,59 @@ Individual and whole-list deletion support transactional `If-Match` list-state c
 
 ## Supabase Data API lockdown (2026-11-15)
 
-Supabase grants new `public` tables to its Data API roles, and the anon key is public. Without a lockdown, `anon` could insert an `integration_credentials` row for any user (forging Eden access to any household) or read operation receipts; a local regression test reproduces this. Migration `1794096002000-eden-data-api-lockdown` enables RLS (no policies) and revokes `anon`/`authenticated` on `integration_credentials`, `shopping_operations`, `hidden_products` and TypeORM's `migrations`. The backend connects as the table owner and is unaffected (operations suite 52/52 with the lockdown). It is idempotent, a no-op for absent roles, and its revert intentionally keeps the lockdown. Pre-existing application tables were not changed; check their Data API exposure with the preflight in [PRODUCTION_RELEASE.md](PRODUCTION_RELEASE.md).
+Supabase grants new `public` tables to its Data API roles, and the anon key is public. Without a lockdown, `anon` could insert an `integration_credentials` row for any user (forging Eden access to any household) or read operation receipts; a local regression test reproduces this. Migration `1794096002000-eden-data-api-lockdown` enables RLS (no policies) and revokes `anon`/`authenticated` on `integration_credentials`, `shopping_operations`, `hidden_products` and TypeORM's `migrations`. The backend connects as the table owner and is unaffected (operations suite 52/52 with the lockdown). It is idempotent, a no-op for absent roles, and its revert intentionally keeps the lockdown. This migration does not cover the pre-existing application tables; see the next section.
+
+## Existing-tables Data API lockdown (2026-11-16; implemented and tested locally, not applied to production)
+
+A read-only production audit found all nine existing `public` tables (`profiles`, `families`, `categories`, `products`, `shopping_lists`, `list_items`, `shopping_sessions`, `session_items`, `hidden_products`) with RLS off, no policies, and SELECT/INSERT/UPDATE/DELETE granted to `anon` and `authenticated`. Anyone holding the public anon key could read or rewrite every household's data, bypassing the backend's AccessPolicy. Neither `main` nor this branch uses the Data API for tables: the browser uses Supabase Auth only, and the backend uses TypeORM as table owner plus the service-role client for Storage only.
+
+Migration `1794095990000-existing-tables-data-api-lockdown` enables RLS (no policies) and revokes `anon`, `authenticated` and `PUBLIC` on those tables, on `migrations` and on `migrations_id_seq`. `service_role` is deliberately kept: its key is secret, it has BYPASSRLS, and the backend uses it for Storage only. The migration is independent of the Eden migrations and ships first, alone.
+
+Its safeguards:
+- **Fails closed.** It refuses when the current schema is not `public` (every name is `public`-qualified). It also refuses when the executing role is neither owner nor BYPASSRLS on every table, or when FORCE RLS would bind it. It rolls back if `anon`/`authenticated` keep any effective privilege (direct, through `PUBLIC`, or through an inherited role; MAINTAIN included on PostgreSQL 17) on a table, column or the bookkeeping sequence.
+- **Bounded locks.** `SET LOCAL lock_timeout = '5s'` makes it fail and roll back instead of queueing application queries indefinitely.
+- **Reversible only on purpose.** Its revert keeps the lockdown.
+
+It is run by `npm run migration:run:data-api-lockdown --workspace=backend` (`src/database/run-data-api-lockdown.ts`), not the TypeORM CLI. The TypeORM CLI creates `public.migrations` *before* its transaction. Under Supabase's default grants, a failed run would leave that table writable by `anon`: a forged row would make a later `migration:run` skip `EdenDataApiLockdown1794096002000`, which was reproduced. The runner prevents this in two ways:
+- It creates the bookkeeping table inside the lockdown transaction, so a failure rolls it back.
+- When the table already exists, it locks it down in its own committed transaction first, keeping its history.
+
+`npm run migration:check:data-api-lockdown --workspace=backend` is a read-only preflight over the exact migration connection. It reports role, BYPASSRLS, current schema, TLS, owners, exposure, recorded and pending migrations, and long transactions.
+
+**Future objects** are covered separately. [`backend/sql/public-default-privileges-hardening.sql`](../backend/sql/public-default-privileges-hardening.sql), run as `postgres`, removes `anon`/`authenticated` from `postgres`'s default privileges in `public` only.
+- It leaves `supabase_admin`'s defaults alone: `postgres` cannot alter them, and they govern Supabase-managed objects.
+- It cannot remove PostgreSQL's built-in EXECUTE-to-PUBLIC on functions. Each future `public` function must revoke it explicitly; changing the global default would affect every schema and is left as a decision.
+
+**Migration-CLI TLS** (`src/database/connection-security.ts`, used by both migration data sources) always verifies the certificate and host name. Supabase's CA is supplied through `NODE_EXTRA_CA_CERTS` (or `sslrootcert`). node-postgres lets URL parameters override the `ssl` option, so the following are refused before connecting, without printing the URL or password:
+- `sslmode` other than `verify-full`, `ssl`, `uselibpqcompat`, `options` and unknown parameters;
+- IP-address hosts, for which node-postgres would skip host-name verification;
+- `DATABASE_SSL=false` on a non-loopback host.
+
+The Render backend (`app.module.ts`) also verifies TLS on this branch and needs the same CA before this branch is deployed. That is separate from the lockdown release.
+
+Local evidence (2026-11-16):
+
+| Command | Result |
+|---|---|
+| `npm run test:supabase-lockdown --workspace=backend` | 11/11 against a disposable `supabase/postgres:17.6.1.054` container (real Supabase roles and default privileges, connected as non-superuser BYPASSRLS `postgres`) |
+| `npm run test:existing-tables-lockdown --workspace=backend` | 7/7 on PostgreSQL 16, as a non-superuser, non-BYPASSRLS owner |
+| `npm test --workspace=backend` | 38/38, including the TLS and connection-guard tests |
+
+What the Supabase-replica suite (11/11) covers:
+- the baseline exposure;
+- `anon`/`authenticated` denied every operation, including on the bookkeeping table and sequence;
+- `postgres` and `service_role` keeping access;
+- byte-identical ACLs, RLS and default privileges outside `public` (Auth, Storage);
+- idempotency and read-only `--check`;
+- injected failures leaving no bookkeeping table, and protecting a pre-existing exposed one;
+- the 5 s lock timeout;
+- `search_path` hijack refusal;
+- new tables, views and sequences unexposed after the hardening (functions keep PUBLIC EXECUTE, as documented);
+- the later Eden `migration:run` leaving nothing exposed.
+
+Further checks:
+- **Real CLI on the replica:** `check` → injected failure (exit 1, nothing left) → run → rerun → full `migration:run`.
+- **Live TLS check** against a private-CA server: refused without the CA, accepted with `NODE_EXTRA_CA_CERTS` or `sslrootcert`, rejected for a wrong CA, a non-TLS server or a mismatched host name.
+- **Earlier sessions, not re-run after these changes:** Eden's real-HTTP end-to-end 10/10 against this backend.
+
+The rollout, verification, failure handling and follow-up work are in section 0 of [PRODUCTION_RELEASE.md](PRODUCTION_RELEASE.md).
