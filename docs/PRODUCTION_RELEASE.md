@@ -202,6 +202,14 @@ Go only if:
 - (f) nonconforming counts are understood;
 - (g) is `true`.
 
+### 1-alt. Eden release while section 0 is postponed (decision 2026-11-17)
+
+Section 0 is postponed by the owner. The Eden release may proceed only with these substitutes:
+
+- **Data API containment first (section 0, step 2):** `public` is removed from Supabase *Exposed schemas*, and the curl check returns 406. Without it, `profiles.familyId` (household membership) stays writable with the public anon key, so Eden's household authorization could be redirected. Neither the frontend nor the backend uses the Data API (Auth and Storage only), so the application is unaffected. Keep `public` unexposed until section 0 ships.
+- **Eden-only migration runner:** `npm run migration:check:eden --workspace=backend` (read-only), then **[approval]** `npm run migration:run:eden --workspace=backend`, in the operator shell from section 0, step 5. It applies only `1794096000000`, `1794096001000` and `1794096002000`, and never `1794095990000`. In one transaction it creates `public.migrations`, runs the three migrations, and enables RLS on, and revokes `anon`/`authenticated` from, `migrations`, `migrations_id_seq`, `integration_credentials`, `shopping_operations` and `hidden_products`. It verifies that no Data API access remains before committing. Any failure rolls back all of it. It refuses to run if `hidden_products` has duplicates. **Do not use plain `migration:run` while section 0 is postponed**, because its data source runs `1794095990000` first. Section 0 can still run later with its own runner (tested in `test/eden-migrations-runner.cjs`, 5/5).
+- Preflight (1c) and (d) do not apply in this mode. The other eight existing tables keep their current RLS and grants until section 0.
+
 ## 2. Release order
 
 1. **[approval] Storage buckets** (Dashboard → Storage, or SQL). Create `product-images-private` and `receipts-private` as **private** if absent. Do not touch the legacy buckets yet. No `storage.objects` policy is needed for the backend (it uses the service role); remove/avoid any policy granting `anon`/`authenticated` access to these buckets.

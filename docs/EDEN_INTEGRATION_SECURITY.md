@@ -135,6 +135,8 @@ It is run by `npm run migration:run:data-api-lockdown --workspace=backend` (`src
 - It creates the bookkeeping table inside the lockdown transaction, so a failure rolls it back.
 - When the table already exists, it locks it down in its own committed transaction first, keeping its history.
 
+While the lockdown is postponed, the integration migrations run through `npm run migration:run:eden --workspace=backend` (`src/database/run-eden-migrations.ts`, `--check` for a read-only preflight). It uses the same pattern: it creates the bookkeeping table inside the transaction and locks the table and its sequence before commit. It applies only the three Eden migrations and refuses to run if `hidden_products` has duplicates. It leaves the other existing tables untouched, and the lockdown runner still works afterwards (`test/eden-migrations-runner.cjs`, 5/5). See [PRODUCTION_RELEASE.md](PRODUCTION_RELEASE.md) § 1-alt for the required Data API containment.
+
 `npm run migration:check:data-api-lockdown --workspace=backend` is a read-only preflight over the exact migration connection. It reports role, BYPASSRLS, current schema, TLS, owners, exposure, recorded and pending migrations, and long transactions.
 
 **Future objects** are covered separately. [`backend/sql/public-default-privileges-hardening.sql`](../backend/sql/public-default-privileges-hardening.sql), run as `postgres`, removes `anon`/`authenticated` from `postgres`'s default privileges in `public` only.
