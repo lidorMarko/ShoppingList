@@ -61,7 +61,7 @@ Two separate database changes, applied in this order:
    Stop if any result differs from the expectation. In particular, a global `(all schemas)` row for `postgres` that grants `anon`/`authenticated` on tables would not be removed by 0-A.
 2. **[approval] Optional immediate containment** (instant, reversible, no database change): Dashboard → Settings → API (Data API) → remove `public` from *Exposed schemas*. `pg_graphql` is not installed (audit F), so PostgREST is the only table API. Check with no rows read:
    `curl -s -o /dev/null -w '%{http_code}\n' "$SUPABASE_URL/rest/v1/profiles?select=id&limit=0" -H "apikey: $ANON_KEY" -H "Authorization: Bearer $ANON_KEY"`
-   It returns 200 while exposed, 406 once `public` is no longer exposed, and 401 after step 8 if `public` is still exposed. Keep it removed afterwards as defence in depth.
+   It returns 200 while exposed and 401 after step 8 if `public` is still exposed. Once `public` is no longer exposed it returns 404 `PGRST205` (the request falls back to `graphql_public`). Adding `-H "Accept-Profile: public"` confirms the refusal with 406 `PGRST106` (observed 2026-11-19). Keep it removed afterwards as defence in depth.
 3. **[approval] Default-privilege hardening (0-A):** paste [`backend/sql/public-default-privileges-hardening.sql`](../backend/sql/public-default-privileges-hardening.sql) into the SQL editor and run it as `postgres`. It runs in one transaction and is idempotent. Its final SELECT must show the `postgres` rows for `public` without `anon=` or `authenticated=`. The `supabase_admin` rows are expected to stay unchanged.
    *Reversal* (re-exposes future tables; only by decision):
    `ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public GRANT <the privileges shown in preflight 1f> ON TABLES|SEQUENCES TO anon, authenticated;`
@@ -107,7 +107,7 @@ Two separate database changes, applied in this order:
    -- expect exactly one row: ExistingTablesDataApiLockdown1794095990000
    select id, "timestamp", name from public.migrations order by id;
    ```
-   Repeat the curl from step 2: expect 401 (or 406 if `public` is no longer exposed).
+   Repeat the curl from step 2: expect 401 (or 404 `PGRST205` / 406 `PGRST106` with `Accept-Profile: public` if `public` is no longer exposed).
 10. **Production smoke tests:** in the live web app:
     - log in and out
     - open lists; add, check and uncheck an item; edit a quantity
@@ -206,7 +206,7 @@ Go only if:
 
 Section 0 is postponed by the owner. The Eden release may proceed only with these substitutes:
 
-- **Data API containment first (section 0, step 2):** `public` is removed from Supabase *Exposed schemas*, and the curl check returns 406. Without it, `profiles.familyId` (household membership) stays writable with the public anon key, so Eden's household authorization could be redirected. Neither the frontend nor the backend uses the Data API (Auth and Storage only), so the application is unaffected. Keep `public` unexposed until section 0 ships.
+- **Data API containment first (section 0, step 2):** `public` is removed from Supabase *Exposed schemas*, and the step 2 curl check is refused (404 `PGRST205`; 406 `PGRST106` with `Accept-Profile: public`). Verified on production 2026-11-19. Without it, `profiles.familyId` (household membership) stays writable with the public anon key, so Eden's household authorization could be redirected. Neither the frontend nor the backend uses the Data API (Auth and Storage only), so the application is unaffected. Keep `public` unexposed until section 0 ships.
 - **Eden-only migration runner:** `npm run migration:check:eden --workspace=backend` (read-only), then **[approval]** `npm run migration:run:eden --workspace=backend`, in the operator shell from section 0, step 5. It applies only `1794096000000`, `1794096001000` and `1794096002000`, and never `1794095990000`. In one transaction it creates `public.migrations`, runs the three migrations, and enables RLS on, and revokes `anon`/`authenticated` from, `migrations`, `migrations_id_seq`, `integration_credentials`, `shopping_operations` and `hidden_products`. It verifies that no Data API access remains before committing. Any failure rolls back all of it. It refuses to run if `hidden_products` has duplicates. **Do not use plain `migration:run` while section 0 is postponed**, because its data source runs `1794095990000` first. Section 0 can still run later with its own runner (tested in `test/eden-migrations-runner.cjs`, 5/5).
 - Preflight (1c) and (d) do not apply in this mode. The other eight existing tables keep their current RLS and grants until section 0.
 
