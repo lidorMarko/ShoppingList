@@ -1,6 +1,12 @@
 # Production release — Eden integration (Render, Vercel, Supabase)
 
-Status (2026-11-16): locally validated on `feature/eden-integration-api`; **not deployed**. Nothing below has been run against production. Every step marked **[approval]** changes production.
+Status (2026-11-19): application code is **not deployed**. Section 0 is postponed. Production changes made so far, each approved by the owner:
+- **Data API containment:** `public` was removed from Exposed schemas, and the refusal was verified (404 `PGRST205` / 406 `PGRST106`).
+- **Private buckets:** `product-images-private` and `receipts-private` were created.
+- **Render:** the CA Secret File and environment variables were configured by the owner.
+- **Migrations:** the three Eden migrations were applied with `migration:run:eden` (§ 1-alt). The runner's post-commit verification and an independent catalog check both passed: history ids 1–3; RLS on with no `anon`/`authenticated` access on `integration_credentials`, `shopping_operations`, `hidden_products`, `migrations` and `migrations_id_seq`; the other eight existing tables unchanged.
+
+Every step marked **[approval]** changes production.
 
 > **Do section 0 first, independently of the Eden release.** The 2026-11-16 read-only audit found all nine existing `public` tables with RLS off, no policies, and SELECT/INSERT/UPDATE/DELETE granted to `anon` and `authenticated`: anyone with the public anon key can read or rewrite every household's data through the Supabase Data API.
 
